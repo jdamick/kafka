@@ -2,3 +2,6 @@ _go_.6
 _obj
 tools/*/_obj
 tools/*/_go_.6
+tools/consumer/consumer
+tools/publisher/publisher
+tools/consumer/test.txt

@@ -1,3 +1,11 @@
+/*
+ * Copyright 2000-2011 NeuStar, Inc. All rights reserved.
+ * NeuStar, the Neustar logo and related names and logos are registered
+ * trademarks, service marks or tradenames of NeuStar, Inc. All other 
+ * product names, company names, marks, logos and symbols may be trademarks
+ * of their respective owners.  
+ */
+
 package kafka
 
 import (
@@ -26,7 +34,7 @@ func NewBrokerConsumer(hostname string, topic string, partition int, offset uint
 type MessageHandlerFunc func(msg *Message)
 
 func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (num int, error os.Error) {
-  // TODO: dont open & close each time..
+	// TODO: dont open & close each time..
 	conn, err := consumer.broker.connect()
 	if err != nil {
 		return -1, err
@@ -98,4 +106,3 @@ func (b *Broker) EncodeConsumeRequest(requestType Request, offset uint64, maxSiz
 
 	return request.Bytes()
 }
-

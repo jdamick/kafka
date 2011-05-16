@@ -1,3 +1,11 @@
+/*
+ * Copyright 2000-2011 NeuStar, Inc. All rights reserved.
+ * NeuStar, the Neustar logo and related names and logos are registered
+ * trademarks, service marks or tradenames of NeuStar, Inc. All other 
+ * product names, company names, marks, logos and symbols may be trademarks
+ * of their respective owners.  
+ */
+
 package kafka
 
 import (
@@ -9,13 +17,12 @@ import (
 )
 
 
-
 type BrokerPublisher struct {
-	broker  *Broker
+	broker *Broker
 }
 
 func NewBrokerPublisher(hostname string, topic string, partition int) *BrokerPublisher {
-	return &BrokerPublisher{ broker: newBroker(hostname, topic, partition) }
+	return &BrokerPublisher{broker: newBroker(hostname, topic, partition)}
 }
 
 
