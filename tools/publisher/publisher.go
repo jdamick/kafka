@@ -31,6 +31,6 @@ func main() {
   fmt.Println("Publishing :", message)
   fmt.Printf("To: %s, topic: %s, partition: %d\n", hostname, topic, partition)
   fmt.Println(" ---------------------- ")
-  broker := kafka.NewBroker(hostname, topic, partition)
+  broker := kafka.NewBrokerPublisher(hostname, topic, partition)
   broker.Publish(kafka.NewMessage([]byte(message)))
 }

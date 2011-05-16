@@ -16,6 +16,7 @@ import (
   "bufio"
   "io"
   "strconv"
+  "net"
 )
 
 type BrokerConsumer struct {
@@ -31,18 +32,62 @@ func NewBrokerConsumer(hostname string, topic string, partition int, offset uint
 }
 
 
+func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, quit chan bool) (int, os.Error) {
+  conn, err := consumer.broker.connect()
+  if err != nil {
+    return -1, err
+  }
+
+  num := 0
+  done := make(chan bool, 1)
+  go func() {
+    for {
+      _, err := consumer.consumeWithConn(conn, func(msg *Message) {
+        msgChan <- msg
+        num += 1
+      })
+
+      if err != nil {
+        if err != os.EOF {
+          fmt.Println("Fatal Error: ", err)
+        }
+        break
+      }
+    }
+    done <- true
+  }()
+
+  // wait to be told to stop..
+  <-quit
+  conn.Close()
+  close(msgChan)
+  <-done
+  return num, err
+}
+
 type MessageHandlerFunc func(msg *Message)
 
-func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (num int, error os.Error) {
+func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (int, os.Error) {
   // TODO: dont open & close each time..
   conn, err := consumer.broker.connect()
   if err != nil {
     return -1, err
   }
 
-  num, err = conn.Write(consumer.broker.EncodeConsumeRequest(REQUEST_FETCH, consumer.offset, consumer.maxSize))
+  num, err := consumer.consumeWithConn(conn, handlerFunc)
+
   if err != nil {
     fmt.Println("Fatal Error: ", err)
+  }
+
+  conn.Close()
+  return num, err
+}
+
+
+func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc MessageHandlerFunc) (int, os.Error) {
+  _, err := conn.Write(consumer.broker.EncodeConsumeRequest(REQUEST_FETCH, consumer.offset, consumer.maxSize))
+  if err != nil {
     return -1, err
   }
 
@@ -50,7 +95,6 @@ func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (num int
   length := make([]byte, 4)
   len, err := io.ReadFull(reader, length)
   if err != nil || len != 4 {
-    fmt.Println("Fatal Error: ", err)
     return -1, err
   }
 
@@ -58,12 +102,11 @@ func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (num int
   messages := make([]byte, expectedLength)
   len, err = io.ReadFull(reader, messages)
   if err != nil {
-    fmt.Println("Fatal Error: ", err)
     return -1, err
   }
 
   if len != int(expectedLength) {
-    fmt.Println("Fatal Error: Unexpected Length: ", len, " expected: ", expectedLength)
+    err = os.NewError(fmt.Sprintf("Fatal Error: Unexpected Length: %d  expected:  %d", len, expectedLength))
     return -1, err
   }
 
@@ -72,21 +115,22 @@ func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (num int
     return -1, os.NewError(strconv.Uitoa(uint(errorCode)))
   }
 
-  // parse out the messages
-  num = 0
-  var currentOffset uint64 = 0
-  for currentOffset <= uint64(expectedLength-4) {
-    msg := Decode(messages[currentOffset+2:])
-    msg.offset = consumer.offset + currentOffset
-    currentOffset += uint64(4 + msg.totalLength)
-    handlerFunc(msg)
-    num += 1
+  num := 0
+  if len > 2 {
+    // parse out the messages
+    var currentOffset uint64 = 0
+    for currentOffset <= uint64(expectedLength-4) {
+      msg := Decode(messages[currentOffset+2:])
+      msg.offset = consumer.offset + currentOffset
+      currentOffset += uint64(4 + msg.totalLength)
+      handlerFunc(msg)
+      num += 1
+    }
+    // update the broker's offset for next consumption
+    consumer.offset += currentOffset
   }
-  // update the broker's offset for next consumption
-  consumer.offset += currentOffset
 
-  conn.Close()
-  return num, error
+  return num, err
 }
 
 

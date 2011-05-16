@@ -14,6 +14,8 @@ import (
   "fmt"
   "os"
   "strconv"
+  "os/signal"
+  "syscall"
 )
 
 var hostname string
@@ -22,6 +24,7 @@ var partition int
 var offset uint64
 var maxSize uint
 var writePayloadsTo string
+var consumerForever bool
 
 func init() {
   flag.StringVar(&hostname, "hostname", "localhost:9092", "host:port string for the kafka server")
@@ -30,6 +33,7 @@ func init() {
   flag.Uint64Var(&offset, "offset", 0, "offset to start consuming from")
   flag.UintVar(&maxSize, "maxsize", 1048576, "offset to start consuming from")
   flag.StringVar(&writePayloadsTo, "writeto", "", "write payloads to this file")
+  flag.BoolVar(&consumerForever, "consumeforever", false, "loop forever consuming")
 }
 
 
@@ -50,14 +54,36 @@ func main() {
     }
   }
 
-  broker.Consume(func(msg *kafka.Message) {
-    msg.Print()
-    if payloadFile != nil {
-      payloadFile.Write([]byte("Message at: " + strconv.Uitoa64(msg.Offset()) + "\n"))
-      payloadFile.Write(msg.Payload())
-      payloadFile.Write([]byte("\n-------------------------------\n"))
+  if consumerForever {
+    quit := make(chan bool, 1)
+    msgChan := make(chan *kafka.Message)
+    go func() {
+      for {
+        sig := <-signal.Incoming
+        if sig.(signal.UnixSignal) == syscall.SIGINT {
+          quit <- true
+        }
+      }
+    }()
+
+    go broker.ConsumeOnChannel(msgChan, quit)
+    for msg := range msgChan {
+      if msg != nil {
+        msg.Print()
+      } else {
+        break
+      }
     }
-  })
+  } else {
+    broker.Consume(func(msg *kafka.Message) {
+      msg.Print()
+      if payloadFile != nil {
+        payloadFile.Write([]byte("Message at: " + strconv.Uitoa64(msg.Offset()) + "\n"))
+        payloadFile.Write(msg.Payload())
+        payloadFile.Write([]byte("\n-------------------------------\n"))
+      }
+    })
+  }
 
   if payloadFile != nil {
     payloadFile.Close()

@@ -9,7 +9,6 @@
 package kafka
 
 import (
-  "fmt"
   "encoding/binary"
   "container/list"
   "bytes"
@@ -26,26 +25,25 @@ func NewBrokerPublisher(hostname string, topic string, partition int) *BrokerPub
 }
 
 
-func (b *Broker) Publish(message *Message) (int, os.Error) {
+func (b *BrokerPublisher) Publish(message *Message) (int, os.Error) {
   messages := list.New()
   messages.PushBack(message)
   return b.BatchPublish(messages)
 }
 
-func (b *Broker) BatchPublish(messages *list.List) (num int, error os.Error) {
-  conn, err := b.connect()
+func (b *BrokerPublisher) BatchPublish(messages *list.List) (int, os.Error) {
+  conn, err := b.broker.connect()
   if err != nil {
     return -1, err
   }
 
   // TODO: MULTIPRODUCE
-  num, err = conn.Write(b.EncodePublishRequest(REQUEST_PRODUCE, messages))
+  num, err := conn.Write(b.broker.EncodePublishRequest(REQUEST_PRODUCE, messages))
   if err != nil {
-    fmt.Println("Fatal Error: ", err)
     return -1, err
   }
   conn.Close()
-  return num, error
+  return num, err
 }
 
 
