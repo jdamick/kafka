@@ -15,6 +15,8 @@ tools: force
 	make -C tools/publisher clean all
 
 format:
-	gofmt -w src/kafka.go
+	gofmt -w src/*.go
+	gofmt -w tools/consumer/*.go
+	gofmt -w tools/publisher/*.go
 
 .PHONY: force 
