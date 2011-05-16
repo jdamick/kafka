@@ -15,8 +15,6 @@ tools: force
 	make -C tools/publisher clean all
 
 format:
-	gofmt -w src/*.go
-	gofmt -w tools/consumer/*.go
-	gofmt -w tools/publisher/*.go
+	gofmt -w -tabwidth=2 -tabindent=false src/*.go tools/consumer/*.go  tools/publisher/*.go kafka_test.go
 
 .PHONY: force 
