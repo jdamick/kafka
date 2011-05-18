@@ -7,6 +7,7 @@ GOFILES=\
 	src/converts.go\
 	src/consumer.go\
 	src/publisher.go\
+	src/timing.go\
 
 include $(GOROOT)/src/Make.pkg
 
@@ -16,5 +17,7 @@ tools: force
 
 format:
 	gofmt -w -tabwidth=2 -tabindent=false src/*.go tools/consumer/*.go  tools/publisher/*.go kafka_test.go
+
+full: format clean install tools
 
 .PHONY: force 

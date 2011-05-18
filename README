@@ -14,4 +14,24 @@ make tools
 Start zookeeper, Kafka server
 For more info on Kafka, see: http://sna-projects.com/kafka/quickstart.php
 
-Run a consumer:
+
+
+
+
+Tools
+-----
+
+Start a consumer:
+   ./tools/consumer/consumer -topic test -consumeforever
+  Consuming Messages :
+  From: localhost:9092, topic: test, partition: 0
+   ---------------------- 
+
+Now the consumer will just poll until a message is received.
+  
+Publish a message:
+  ./tools/publisher/publisher -topic test -message "Hello World"
+
+The consumer should output message.
+
+

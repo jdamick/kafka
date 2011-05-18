@@ -17,6 +17,7 @@ import (
   "io"
   "strconv"
   "net"
+  "time"
 )
 
 type BrokerConsumer struct {
@@ -32,7 +33,7 @@ func NewBrokerConsumer(hostname string, topic string, partition int, offset uint
 }
 
 
-func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, quit chan bool) (int, os.Error) {
+func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTimeoutMs int64, quit chan bool) (int, os.Error) {
   conn, err := consumer.broker.connect()
   if err != nil {
     return -1, err
@@ -53,6 +54,7 @@ func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, quit cha
         }
         break
       }
+      time.Sleep(pollTimeoutMs * 1000000)
     }
     done <- true
   }()
@@ -68,7 +70,6 @@ func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, quit cha
 type MessageHandlerFunc func(msg *Message)
 
 func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (int, os.Error) {
-  // TODO: dont open & close each time..
   conn, err := consumer.broker.connect()
   if err != nil {
     return -1, err
