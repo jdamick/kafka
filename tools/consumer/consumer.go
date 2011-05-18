@@ -54,6 +54,16 @@ func main() {
     }
   }
 
+  consumerCallback := func(msg *kafka.Message) {
+    msg.Print()
+    if payloadFile != nil {
+      payloadFile.Write([]byte("Message at: " + strconv.Uitoa64(msg.Offset()) + "\n"))
+      payloadFile.Write(msg.Payload())
+      payloadFile.Write([]byte("\n-------------------------------\n"))
+    }
+  }
+
+
   if consumerForever {
     quit := make(chan bool, 1)
     msgChan := make(chan *kafka.Message)
@@ -69,20 +79,13 @@ func main() {
     go broker.ConsumeOnChannel(msgChan, quit)
     for msg := range msgChan {
       if msg != nil {
-        msg.Print()
+        consumerCallback(msg)
       } else {
         break
       }
     }
   } else {
-    broker.Consume(func(msg *kafka.Message) {
-      msg.Print()
-      if payloadFile != nil {
-        payloadFile.Write([]byte("Message at: " + strconv.Uitoa64(msg.Offset()) + "\n"))
-        payloadFile.Write(msg.Payload())
-        payloadFile.Write([]byte("\n-------------------------------\n"))
-      }
-    })
+    broker.Consume(consumerCallback)
   }
 
   if payloadFile != nil {
