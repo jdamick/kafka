@@ -122,6 +122,9 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
     var currentOffset uint64 = 0
     for currentOffset <= uint64(expectedLength-4) {
       msg := Decode(messages[currentOffset+2:])
+      if msg == nil {
+        return num, os.NewError("Error Decoding Message")
+      }
       msg.offset = consumer.offset + currentOffset
       currentOffset += uint64(4 + msg.totalLength)
       handlerFunc(msg)
