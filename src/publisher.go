@@ -9,9 +9,7 @@
 package kafka
 
 import (
-  "encoding/binary"
   "container/list"
-  "bytes"
   "os"
 )
 
@@ -38,40 +36,10 @@ func (b *BrokerPublisher) BatchPublish(messages *list.List) (int, os.Error) {
   }
 
   // TODO: MULTIPRODUCE
-  num, err := conn.Write(b.broker.EncodePublishRequest(REQUEST_PRODUCE, messages))
+  num, err := conn.Write(b.broker.EncodePublishRequest(messages))
   if err != nil {
     return -1, err
   }
   conn.Close()
   return num, err
-}
-
-
-// <REQUEST_SIZE: uint32><REQUEST_TYPE: uint16><TOPIC SIZE: uint16><TOPIC: bytes><PARTITION: uint32><MESSAGE SET SIZE: uint32><MESSAGE SETS>
-func (b *Broker) EncodePublishRequest(requestType Request, messages *list.List) []byte {
-  // 4 + 2 + 2 + topicLength + 4 + 4
-  request := bytes.NewBuffer([]byte{})
-
-  request.Write(uint32bytes(0)) // placeholder for request size
-  request.Write(uint16bytes(int(requestType)))
-  request.Write(uint16bytes(len(b.topic)))
-  request.WriteString(b.topic)
-  request.Write(uint32bytes(b.partition))
-
-  messageSetSizePos := request.Len()
-  request.Write(uint32bytes(0)) // placeholder message len
-
-  written := 0
-  for element := messages.Front(); element != nil; element = element.Next() {
-    message := element.Value.(*Message)
-    wrote, _ := request.Write(message.Encode())
-    written += wrote
-  }
-
-  // now add the accumulated size of that the message set was
-  binary.BigEndian.PutUint32(request.Bytes()[messageSetSizePos:], uint32(written))
-  // now add the size of the whole to the first uint32
-  binary.BigEndian.PutUint32(request.Bytes()[0:], uint32(request.Len()-4))
-
-  return request.Bytes()
 }

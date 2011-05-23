@@ -8,6 +8,7 @@ GOFILES=\
 	src/consumer.go\
 	src/publisher.go\
 	src/timing.go\
+	src/request.go\
 
 include $(GOROOT)/src/Make.pkg
 

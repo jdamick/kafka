@@ -11,7 +11,6 @@ package kafka
 import (
   "fmt"
   "encoding/binary"
-  "bytes"
   "os"
   "bufio"
   "io"
@@ -87,7 +86,7 @@ func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (int, os
 
 
 func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc MessageHandlerFunc) (int, os.Error) {
-  _, err := conn.Write(consumer.broker.EncodeConsumeRequest(REQUEST_FETCH, consumer.offset, consumer.maxSize))
+  _, err := conn.Write(consumer.broker.EncodeConsumeRequest(consumer.offset, consumer.maxSize))
   if err != nil {
     return -1, err
   }
@@ -95,8 +94,11 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
   reader := bufio.NewReader(conn)
   length := make([]byte, 4)
   len, err := io.ReadFull(reader, length)
-  if err != nil || len != 4 {
+  if err != nil {
     return -1, err
+  }
+  if len != 4 {
+    return -1, os.NewError("invalid length of the packet length field")
   }
 
   expectedLength := binary.BigEndian.Uint32(length)
@@ -138,19 +140,40 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 }
 
 
-// <REQUEST_SIZE: uint32><REQUEST_TYPE: uint16><TOPIC SIZE: uint16><TOPIC: bytes><PARTITION: uint32><OFFSET: uint64><MAX SIZE: uint32>
-func (b *Broker) EncodeConsumeRequest(requestType Request, offset uint64, maxSize uint32) []byte {
-  request := bytes.NewBuffer([]byte{})
+// Get a list of valid offsets (up to maxNumOffsets) before the given time, where 
+// time is in milliseconds (-1, from the latest offset available, -2 from the smallest offset available)
+// The result is a list of offsets, in descending order.
+/**
+func (consumer *BrokerConsumer) GetOffsets(time uint64, maxNumOffsets uint32) (uint64, os.Error) {
+  offsets = make([]uint64)
 
-  request.Write(uint32bytes(0)) // placeholder for request size
-  request.Write(uint16bytes(int(requestType)))
-  request.Write(uint16bytes(len(b.topic)))
-  request.WriteString(b.topic)
-  request.Write(uint32bytes(b.partition))
+  conn, err := consumer.broker.connect()
+  if err != nil {
+    return offsets, err
+  }
 
-  request.Write(uint64ToUint64bytes(offset))
-  request.Write(uint32toUint32bytes(maxSize))
-  binary.BigEndian.PutUint32(request.Bytes()[0:], uint32(request.Len()-4))
+  _, err := conn.Write(consumer.broker.EncodeOffsetRequest(time, maxNumOffsets))
+  if err != nil {
+    return offsets, err
+  }
 
-  return request.Bytes()
+  reader := bufio.NewReader(conn)
+  length := make([]byte, 4)
+  len, err := io.ReadFull(reader, length)
+  if err != nil {
+    return offsets, err
+  }
+  if len != 4 {
+    return offsets, os.NewError("invalid length of the packet length field")
+  }
+
+
+  if err != nil {
+    fmt.Println("Fatal Error: ", err)
+  }
+
+  conn.Close()
+
+  return offsets, err
 }
+**/

@@ -16,17 +16,6 @@ import (
 )
 
 
-// Request Types
-type Request uint16
-
-const (
-  REQUEST_PRODUCE      Request = 0
-  REQUEST_FETCH        = 1
-  REQUEST_MULTIFETCH   = 2
-  REQUEST_MULTIPRODUCE = 3
-  REQUEST_OFFSETS      = 4
-)
-
 type Message struct {
   magic       byte
   checksum    [4]byte
