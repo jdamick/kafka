@@ -12,7 +12,7 @@ import (
   "hash/crc32"
   "encoding/binary"
   "bytes"
-  "fmt"
+  "log"
 )
 
 
@@ -58,7 +58,7 @@ func (m *Message) Encode() []byte {
 func Decode(packet []byte) *Message {
   length := binary.BigEndian.Uint32(packet[0:])
   if length > uint32(len(packet[4:])) {
-    fmt.Printf("length mismatch, expected at least: %X, was: %X\n", length, len(packet[4:]))
+    log.Printf("length mismatch, expected at least: %X, was: %X\n", length, len(packet[4:]))
     return nil
   }
   msg := Message{}
@@ -71,22 +71,22 @@ func Decode(packet []byte) *Message {
   payloadChecksum := make([]byte, 4)
   binary.BigEndian.PutUint32(payloadChecksum, crc32.ChecksumIEEE(msg.payload))
   if !bytes.Equal(payloadChecksum, msg.checksum[:]) {
-    fmt.Printf("checksum mismatch, expected: %X was: %X\n", payloadChecksum, msg.checksum[:])
+    log.Printf("checksum mismatch, expected: %X was: %X\n", payloadChecksum, msg.checksum[:])
     return nil
   }
   return &msg
 }
 
 func (msg *Message) Print() {
-  fmt.Println("----- Begin Message ------")
-  fmt.Printf("magic: %X\n", msg.magic)
-  fmt.Printf("checksum: %X\n", msg.checksum)
+  log.Println("----- Begin Message ------")
+  log.Printf("magic: %X\n", msg.magic)
+  log.Printf("checksum: %X\n", msg.checksum)
   if len(msg.payload) < 1048576 { // 1 MB 
-    fmt.Printf("payload: %X\n", msg.payload)
-    fmt.Printf("payload(string): %s\n", msg.PayloadString())
+    log.Printf("payload: %X\n", msg.payload)
+    log.Printf("payload(string): %s\n", msg.PayloadString())
   } else {
-    fmt.Printf("long payload, length: %d\n", len(msg.payload))
+    log.Printf("long payload, length: %d\n", len(msg.payload))
   }
-  fmt.Printf("offset: %d\n", msg.offset)
-  fmt.Println("----- End Message ------")
+  log.Printf("offset: %d\n", msg.offset)
+  log.Println("----- End Message ------")
 }

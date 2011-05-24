@@ -45,10 +45,10 @@ func encodeRequestSize(request *bytes.Buffer) {
 }
 
 // <Request Header><TIME: uint64><MAX NUMBER of OFFSETS: uint32>
-func (b *Broker) EncodeOffsetRequest(time uint64, maxNumOffsets uint32) []byte {
+func (b *Broker) EncodeOffsetRequest(time int64, maxNumOffsets uint32) []byte {
   request := b.EncodeRequestHeader(REQUEST_OFFSETS)
   // specific to offset request
-  request.Write(uint64ToUint64bytes(time))
+  request.Write(uint64ToUint64bytes(uint64(time)))
   request.Write(uint32toUint32bytes(maxNumOffsets))
 
   encodeRequestSize(request)

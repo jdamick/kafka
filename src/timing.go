@@ -9,7 +9,7 @@
 package kafka
 
 import (
-  "fmt"
+  "log"
   "time"
 )
 
@@ -31,5 +31,5 @@ func (t *Timing) Print() {
   if t.stop == 0 {
     t.Stop()
   }
-  fmt.Printf("%s took: %f ms\n", t.label, float64((time.Nanoseconds()-t.start))/1000000)
+  log.Printf("%s took: %f ms\n", t.label, float64((time.Nanoseconds()-t.start))/1000000)
 }

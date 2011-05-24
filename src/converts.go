@@ -34,6 +34,6 @@ func uint32toUint32bytes(value uint32) []byte {
 
 func uint64ToUint64bytes(value uint64) []byte {
   result := make([]byte, 8)
-  binary.BigEndian.PutUint64(result, uint64(value))
+  binary.BigEndian.PutUint64(result, value)
   return result
 }

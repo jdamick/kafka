@@ -34,12 +34,12 @@ func (b *BrokerPublisher) BatchPublish(messages *list.List) (int, os.Error) {
   if err != nil {
     return -1, err
   }
-
+  defer conn.Close()
   // TODO: MULTIPRODUCE
   num, err := conn.Write(b.broker.EncodePublishRequest(messages))
   if err != nil {
     return -1, err
   }
-  conn.Close()
+
   return num, err
 }

@@ -9,14 +9,11 @@
 package kafka
 
 import (
-  "fmt"
-  "encoding/binary"
+  "log"
   "os"
-  "bufio"
-  "io"
-  "strconv"
   "net"
   "time"
+  "encoding/binary"
 )
 
 type BrokerConsumer struct {
@@ -49,7 +46,7 @@ func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTime
 
       if err != nil {
         if err != os.EOF {
-          fmt.Println("Fatal Error: ", err)
+          log.Println("Fatal Error: ", err)
         }
         break
       }
@@ -73,14 +70,14 @@ func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (int, os
   if err != nil {
     return -1, err
   }
+  defer conn.Close()
 
   num, err := consumer.consumeWithConn(conn, handlerFunc)
 
   if err != nil {
-    fmt.Println("Fatal Error: ", err)
+    log.Println("Fatal Error: ", err)
   }
 
-  conn.Close()
   return num, err
 }
 
@@ -91,39 +88,18 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
     return -1, err
   }
 
-  reader := bufio.NewReader(conn)
-  length := make([]byte, 4)
-  len, err := io.ReadFull(reader, length)
+  length, payload, err := consumer.broker.readResponse(conn)
+
   if err != nil {
     return -1, err
-  }
-  if len != 4 {
-    return -1, os.NewError("invalid length of the packet length field")
-  }
-
-  expectedLength := binary.BigEndian.Uint32(length)
-  messages := make([]byte, expectedLength)
-  len, err = io.ReadFull(reader, messages)
-  if err != nil {
-    return -1, err
-  }
-
-  if len != int(expectedLength) {
-    err = os.NewError(fmt.Sprintf("Fatal Error: Unexpected Length: %d  expected:  %d", len, expectedLength))
-    return -1, err
-  }
-
-  errorCode := binary.BigEndian.Uint16(messages[0:2])
-  if errorCode != 0 {
-    return -1, os.NewError(strconv.Uitoa(uint(errorCode)))
   }
 
   num := 0
-  if len > 2 {
+  if length > 2 {
     // parse out the messages
     var currentOffset uint64 = 0
-    for currentOffset <= uint64(expectedLength-4) {
-      msg := Decode(messages[currentOffset+2:])
+    for currentOffset <= uint64(length-4) {
+      msg := Decode(payload[currentOffset:])
       if msg == nil {
         return num, os.NewError("Error Decoding Message")
       }
@@ -143,37 +119,36 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 // Get a list of valid offsets (up to maxNumOffsets) before the given time, where 
 // time is in milliseconds (-1, from the latest offset available, -2 from the smallest offset available)
 // The result is a list of offsets, in descending order.
-/**
-func (consumer *BrokerConsumer) GetOffsets(time uint64, maxNumOffsets uint32) (uint64, os.Error) {
-  offsets = make([]uint64)
+func (consumer *BrokerConsumer) GetOffsets(time int64, maxNumOffsets uint32) ([]uint64, os.Error) {
+  offsets := make([]uint64, 0)
 
   conn, err := consumer.broker.connect()
   if err != nil {
     return offsets, err
   }
 
-  _, err := conn.Write(consumer.broker.EncodeOffsetRequest(time, maxNumOffsets))
+  defer conn.Close()
+
+  _, err = conn.Write(consumer.broker.EncodeOffsetRequest(time, maxNumOffsets))
   if err != nil {
     return offsets, err
   }
 
-  reader := bufio.NewReader(conn)
-  length := make([]byte, 4)
-  len, err := io.ReadFull(reader, length)
+  length, payload, err := consumer.broker.readResponse(conn)
   if err != nil {
     return offsets, err
   }
-  if len != 4 {
-    return offsets, os.NewError("invalid length of the packet length field")
+
+  if length > 4 {
+    // get the number of offsets
+    numOffsets := binary.BigEndian.Uint32(payload[0:])
+    var currentOffset uint64 = 4
+    for currentOffset < uint64(length-4) && uint32(len(offsets)) < numOffsets {
+      offset := binary.BigEndian.Uint64(payload[currentOffset:])
+      offsets = append(offsets, offset)
+      currentOffset += 8 // offset size
+    }
   }
-
-
-  if err != nil {
-    fmt.Println("Fatal Error: ", err)
-  }
-
-  conn.Close()
 
   return offsets, err
 }
-**/

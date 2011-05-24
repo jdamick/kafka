@@ -9,9 +9,14 @@
 package kafka
 
 import (
-  "fmt"
+  "log"
   "net"
   "os"
+  "fmt"
+  "encoding/binary"
+  "strconv"
+  "io"
+  "bufio"
 )
 
 const (
@@ -35,10 +40,44 @@ func newBroker(hostname string, topic string, partition int) *Broker {
 
 func (b *Broker) connect() (conn *net.TCPConn, error os.Error) {
   raddr, err := net.ResolveTCPAddr(NETWORK, b.hostname)
+  if err != nil {
+    log.Println("Fatal Error: ", err)
+    return nil, err
+  }
   conn, err = net.DialTCP(NETWORK, nil, raddr)
   if err != nil {
-    fmt.Println("Fatal Error: ", err)
+    log.Println("Fatal Error: ", err)
     return nil, err
   }
   return conn, error
+}
+
+// returns length of response & payload & err
+func (b *Broker) readResponse(conn *net.TCPConn) (uint32, []byte, os.Error) {
+  reader := bufio.NewReader(conn)
+  length := make([]byte, 4)
+  lenRead, err := io.ReadFull(reader, length)
+  if err != nil {
+    return 0, []byte{}, err
+  }
+  if lenRead != 4 || lenRead < 0 {
+    return 0, []byte{}, os.NewError("invalid length of the packet length field")
+  }
+
+  expectedLength := binary.BigEndian.Uint32(length)
+  messages := make([]byte, expectedLength)
+  lenRead, err = io.ReadFull(reader, messages)
+  if err != nil {
+    return 0, []byte{}, err
+  }
+
+  if uint32(lenRead) != expectedLength {
+    return 0, []byte{}, os.NewError(fmt.Sprintf("Fatal Error: Unexpected Length: %d  expected:  %d", lenRead, expectedLength))
+  }
+
+  errorCode := binary.BigEndian.Uint16(messages[0:2])
+  if errorCode != 0 {
+    return 0, []byte{}, os.NewError(strconv.Uitoa(uint(errorCode)))
+  }
+  return expectedLength, messages[2:], nil
 }
