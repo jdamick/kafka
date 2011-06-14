@@ -1,10 +1,10 @@
-= Kafka.go - Publisher & Consumer for Kafka in Go =
----------------------------------------------------------------------
+# Kafka.go - Publisher & Consumer for Kafka in Go #
+
 Kafka is a distributed publish-subscribe messaging system: (http://sna-projects.com/kafka/)
 Go language: (http://golang.org/)
 
-Get up and running
-------------------
+## Get up and running ##
+
 Install kafka.go package:
 make install
 
@@ -16,8 +16,7 @@ For more info on Kafka, see: http://sna-projects.com/kafka/quickstart.php
 
 
 
-
-== Tools ==
+## Tools ##
 
 Start a consumer:
 <pre><code>
@@ -36,10 +35,10 @@ Publish a message:
 
 The consumer should output message.
 
-== API Usage ==
+## API Usage ##
 
-Publishing
-----------
+### Publishing ###
+
 
 <pre><code>
 
