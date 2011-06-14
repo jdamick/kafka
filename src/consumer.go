@@ -28,6 +28,13 @@ func NewBrokerConsumer(hostname string, topic string, partition int, offset uint
     maxSize: maxSize}
 }
 
+// Simplified consumer that defaults the offset and maxSize to 0.
+func NewBrokerOffsetConsumer(hostname string, topic string, partition int) *BrokerConsumer {
+  return &BrokerConsumer{broker: newBroker(hostname, topic, partition),
+    offset:  0,
+    maxSize: 0}
+}
+
 
 func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTimeoutMs int64, quit chan bool) (int, os.Error) {
   conn, err := consumer.broker.connect()

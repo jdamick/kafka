@@ -34,7 +34,7 @@ func main() {
   fmt.Println("Offsets :")
   fmt.Printf("From: %s, topic: %s, partition: %d\n", hostname, topic, partition)
   fmt.Println(" ---------------------- ")
-  broker := kafka.NewBrokerConsumer(hostname, topic, partition, 0, 0)
+  broker := kafka.NewBrokerOffsetConsumer(hostname, topic, partition)
 
   offsets, err := broker.GetOffsets(time, uint32(offsets))
   if err != nil {
