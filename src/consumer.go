@@ -22,6 +22,12 @@ type BrokerConsumer struct {
   maxSize uint32
 }
 
+// Create a new broker consumer
+// hostname - host and optionally port, delimited by ':'
+// topic to consume
+// partition to consume from
+// offset to start consuming from
+// maxSize (in bytes) of the message to consume (this should be at least as big as the biggest message to be published)
 func NewBrokerConsumer(hostname string, topic string, partition int, offset uint64, maxSize uint32) *BrokerConsumer {
   return &BrokerConsumer{broker: newBroker(hostname, topic, partition),
     offset:  offset,
@@ -29,6 +35,9 @@ func NewBrokerConsumer(hostname string, topic string, partition int, offset uint
 }
 
 // Simplified consumer that defaults the offset and maxSize to 0.
+// hostname - host and optionally port, delimited by ':'
+// topic to consume
+// partition to consume from
 func NewBrokerOffsetConsumer(hostname string, topic string, partition int) *BrokerConsumer {
   return &BrokerConsumer{broker: newBroker(hostname, topic, partition),
     offset:  0,

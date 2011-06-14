@@ -47,6 +47,27 @@ broker.Publish(kafka.NewMessage([]byte("tesing 1 2 3")))
 
 </code></pre>
 
+### Consumer ###
 
+<pre><code>
+broker := kafka.NewBrokerConsumer("localhost:9092", "mytesttopic", 0, 0, 1048576)
+broker.Consume(func(msg *kafka.Message) { msg.Print() })
+
+</code></pre>
+
+Or the consumer can use a channel based approach:
+
+<pre><code>
+broker := kafka.NewBrokerConsumer("localhost:9092", "mytesttopic", 0, 0, 1048576)
+go broker.ConsumeOnChannel(msgChan, 10, quitChan)
+
+</code></pre>
+
+### Consuming Offsets ###
+
+<pre><code>
+broker := kafka.NewBrokerOffsetConsumer("localhost:9092", "mytesttopic", 0)
+offsets, err := broker.GetOffsets(-1, 1)
+</code></pre>
 
 
