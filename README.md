@@ -1,17 +1,18 @@
 # Kafka.go - Publisher & Consumer for Kafka in Go #
 
 Kafka is a distributed publish-subscribe messaging system: (http://sna-projects.com/kafka/)
-Go language: (http://golang.org/)
+
+Go language: (http://golang.org/) <br/>
 
 ## Get up and running ##
 
-Install kafka.go package:
-make install
-
-Make the tools (publisher & consumer)
-make tools
-
-Start zookeeper, Kafka server
+Install kafka.go package: <br/>
+<code>make install</code>
+<br/>
+Make the tools (publisher & consumer) <br/>
+<code>make tools</code>
+<br/>
+Start zookeeper, Kafka server <br/>
 For more info on Kafka, see: http://sna-projects.com/kafka/quickstart.php
 
 
