@@ -1,25 +1,41 @@
 /*
- * Copyright 2000-2011 NeuStar, Inc. All rights reserved.
- * NeuStar, the Neustar logo and related names and logos are registered
- * trademarks, service marks or tradenames of NeuStar, Inc. All other 
- * product names, company names, marks, logos and symbols may be trademarks
- * of their respective owners.  
+ *  Copyright (c) 2011 NeuStar, Inc.
+ *  All rights reserved.  
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at 
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *  
+ *  NeuStar, the Neustar logo and related names and logos are registered
+ *  trademarks, service marks or tradenames of NeuStar, Inc. All other 
+ *  product names, company names, marks, logos and symbols may be trademarks
+ *  of their respective owners.
  */
 
 package kafka
 
 import (
+  "encoding/binary"
+  "errors"
+  "io"
   "log"
-  "os"
   "net"
   "time"
-  "encoding/binary"
 )
 
 type BrokerConsumer struct {
   broker  *Broker
   offset  uint64
   maxSize uint32
+  codecs  map[byte]PayloadCodec
 }
 
 // Create a new broker consumer
@@ -31,7 +47,8 @@ type BrokerConsumer struct {
 func NewBrokerConsumer(hostname string, topic string, partition int, offset uint64, maxSize uint32) *BrokerConsumer {
   return &BrokerConsumer{broker: newBroker(hostname, topic, partition),
     offset:  offset,
-    maxSize: maxSize}
+    maxSize: maxSize,
+    codecs:  DefaultCodecsMap}
 }
 
 // Simplified consumer that defaults the offset and maxSize to 0.
@@ -41,11 +58,20 @@ func NewBrokerConsumer(hostname string, topic string, partition int, offset uint
 func NewBrokerOffsetConsumer(hostname string, topic string, partition int) *BrokerConsumer {
   return &BrokerConsumer{broker: newBroker(hostname, topic, partition),
     offset:  0,
-    maxSize: 0}
+    maxSize: 0,
+    codecs:  DefaultCodecsMap}
 }
 
+// Add Custom Payload Codecs for Consumer Decoding
+// payloadCodecs - an array of PayloadCodec implementations
+func (consumer *BrokerConsumer) AddCodecs(payloadCodecs []PayloadCodec) {
+  // merge to the default map, so one 'could' override the default codecs..
+  for k, v := range codecsMap(payloadCodecs) {
+    consumer.codecs[k] = v
+  }
+}
 
-func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTimeoutMs int64, quit chan bool) (int, os.Error) {
+func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTimeoutMs int64, quit chan bool) (int, error) {
   conn, err := consumer.broker.connect()
   if err != nil {
     return -1, err
@@ -61,16 +87,17 @@ func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTime
       })
 
       if err != nil {
-        if err != os.EOF {
+        if err != io.EOF {
           log.Println("Fatal Error: ", err)
+          panic(err)
         }
+        quit <- true // force quit
         break
       }
-      time.Sleep(pollTimeoutMs * 1000000)
+      time.Sleep(time.Millisecond * time.Duration(pollTimeoutMs))
     }
     done <- true
   }()
-
   // wait to be told to stop..
   <-quit
   conn.Close()
@@ -81,7 +108,7 @@ func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTime
 
 type MessageHandlerFunc func(msg *Message)
 
-func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (int, os.Error) {
+func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (int, error) {
   conn, err := consumer.broker.connect()
   if err != nil {
     return -1, err
@@ -97,8 +124,7 @@ func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (int, os
   return num, err
 }
 
-
-func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc MessageHandlerFunc) (int, os.Error) {
+func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc MessageHandlerFunc) (int, error) {
   _, err := conn.Write(consumer.broker.EncodeConsumeRequest(consumer.offset, consumer.maxSize))
   if err != nil {
     return -1, err
@@ -115,14 +141,19 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
     // parse out the messages
     var currentOffset uint64 = 0
     for currentOffset <= uint64(length-4) {
-      msg := Decode(payload[currentOffset:])
-      if msg == nil {
-        return num, os.NewError("Error Decoding Message")
+      totalLength, msgs := Decode(payload[currentOffset:], consumer.codecs)
+      if msgs == nil {
+        return num, errors.New("Error Decoding Message")
       }
-      msg.offset = consumer.offset + currentOffset
-      currentOffset += uint64(4 + msg.totalLength)
-      handlerFunc(msg)
-      num += 1
+      msgOffset := consumer.offset + currentOffset
+      for _, msg := range msgs {
+        // update all of the messages offset
+        // multiple messages can be at the same offset (compressed for example)
+        msg.offset = msgOffset
+        handlerFunc(&msg)
+        num += 1
+      }
+      currentOffset += uint64(4 + totalLength)
     }
     // update the broker's offset for next consumption
     consumer.offset += currentOffset
@@ -131,11 +162,10 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
   return num, err
 }
 
-
 // Get a list of valid offsets (up to maxNumOffsets) before the given time, where 
 // time is in milliseconds (-1, from the latest offset available, -2 from the smallest offset available)
 // The result is a list of offsets, in descending order.
-func (consumer *BrokerConsumer) GetOffsets(time int64, maxNumOffsets uint32) ([]uint64, os.Error) {
+func (consumer *BrokerConsumer) GetOffsets(time int64, maxNumOffsets uint32) ([]uint64, error) {
   offsets := make([]uint64, 0)
 
   conn, err := consumer.broker.connect()

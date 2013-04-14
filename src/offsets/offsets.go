@@ -1,17 +1,32 @@
 /*
- * Copyright 2000-2011 NeuStar, Inc. All rights reserved.
- * NeuStar, the Neustar logo and related names and logos are registered
- * trademarks, service marks or tradenames of NeuStar, Inc. All other 
- * product names, company names, marks, logos and symbols may be trademarks
- * of their respective owners.  
+ *  Copyright (c) 2011 NeuStar, Inc.
+ *  All rights reserved.  
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at 
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *  
+ *  NeuStar, the Neustar logo and related names and logos are registered
+ *  trademarks, service marks or tradenames of NeuStar, Inc. All other 
+ *  product names, company names, marks, logos and symbols may be trademarks
+ *  of their respective owners.
  */
 
 package main
 
 import (
-  "kafka"
   "flag"
   "fmt"
+  //kafka "svn.apache.org/repos/asf/incubator/kafka.svn/trunk/clients/go/src"
+  "kafka"
 )
 
 var hostname string
@@ -28,7 +43,6 @@ func init() {
   flag.Int64Var(&time, "time", -1, "timestamp of the offsets before that:  time(ms)/-1(latest)/-2(earliest)")
 }
 
-
 func main() {
   flag.Parse()
   fmt.Println("Offsets :")
@@ -41,7 +55,7 @@ func main() {
     fmt.Println("Error: ", err)
   }
   fmt.Printf("Offsets found: %d\n", len(offsets))
-  for i := 0 ; i < len(offsets); i++ {
+  for i := 0; i < len(offsets); i++ {
     fmt.Printf("Offset[%d] = %d\n", i, offsets[i])
   }
 }

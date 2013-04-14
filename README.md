@@ -1,19 +1,28 @@
 # Kafka.go - Publisher & Consumer for Kafka in Go #
 
-Kafka is a distributed publish-subscribe messaging system: (http://sna-projects.com/kafka/)
+Kafka is a distributed publish-subscribe messaging system: (http://incubator.apache.org/kafka/)
 
 Go language: (http://golang.org/) <br/>
 
 ## Get up and running ##
 
-Install kafka.go package: <br/>
-<code>make install</code>
+Install go (version 1): <br/>
+For more info see: http://weekly.golang.org/doc/install.html#install 
+
+Make sure to set your GOROOT properly (http://golang.org/doc/install.html#environment).
+Also set your GOPATH appropriately: http://weekly.golang.org/doc/code.html#tmp_13
+
+
+Build from source:
+<code>go install kafka</code>
 <br/>
 Make the tools (publisher & consumer) <br/>
-<code>make tools</code>
+<code>go install consumer</code>
+<code>go install publisher</code>
+<code>go install offsets</code>
 <br/>
 Start zookeeper, Kafka server <br/>
-For more info on Kafka, see: http://sna-projects.com/kafka/quickstart.php
+For more info on Kafka, see: http://incubator.apache.org/kafka/quickstart.html
 
 
 
@@ -48,6 +57,17 @@ broker.Publish(kafka.NewMessage([]byte("tesing 1 2 3")))
 
 </code></pre>
 
+
+### Publishing Compressed Messages ###
+
+<pre><code>
+
+broker := kafka.NewBrokerPublisher("localhost:9092", "mytesttopic", 0)
+broker.Publish(kafka.NewCompressedMessage([]byte("tesing 1 2 3")))
+
+</code></pre>
+
+
 ### Consumer ###
 
 <pre><code>
@@ -70,5 +90,14 @@ go broker.ConsumeOnChannel(msgChan, 10, quitChan)
 broker := kafka.NewBrokerOffsetConsumer("localhost:9092", "mytesttopic", 0)
 offsets, err := broker.GetOffsets(-1, 1)
 </code></pre>
+
+
+### Contact ###
+
+jeffreydamick (at) gmail (dot) com
+
+http://twitter.com/jeffreydamick
+
+Big thank you to [NeuStar](http://neustar.biz) for sponsoring this work.
 
 
