@@ -1,8 +1,13 @@
 # Kafka.go - Publisher & Consumer for Kafka in Go #
 
-Kafka is a distributed publish-subscribe messaging system: (http://incubator.apache.org/kafka/)
+Kafka is a distributed publish-subscribe messaging system: (http://kafka.apache.org)
 
 Go language: (http://golang.org/) <br/>
+
+## Changes
+
+4/13 - Merged back from the apache repository & outstanding patches from jira applied
+
 
 ## Get up and running ##
 
