@@ -24,7 +24,7 @@ package kafka
 
 import (
   "testing"
-  //"fmt"
+  // "fmt"
   "bytes"
   "compress/gzip"
 )
@@ -102,7 +102,7 @@ func TestMessageEncoding(t *testing.T) {
 func TestCompressedMessageEncodingCompare(t *testing.T) {
   payload := []byte("testing")
   uncompressedMsgBytes := NewMessage(payload).Encode()
-  
+
   msgGzipBytes := NewMessageWithCodec(uncompressedMsgBytes, DefaultCodecsMap[GZIP_COMPRESSION_ID]).Encode()
   msgDefaultBytes := NewCompressedMessage(payload).Encode()
   if !bytes.Equal(msgDefaultBytes, msgGzipBytes) {
@@ -113,7 +113,7 @@ func TestCompressedMessageEncodingCompare(t *testing.T) {
 func TestCompressedMessageEncoding(t *testing.T) {
   payload := []byte("testing")
   uncompressedMsgBytes := NewMessage(payload).Encode()
-  
+
   msg := NewMessageWithCodec(uncompressedMsgBytes, DefaultCodecsMap[GZIP_COMPRESSION_ID])
 
   expectedPayload := []byte{0x1F, 0x8B, 0x08, 0x00, 0x00, 0x09, 0x6E, 0x88, 0x04,
@@ -158,7 +158,7 @@ func TestCompressedMessageEncoding(t *testing.T) {
   }
   chksum := []byte{0xE8, 0xF3, 0x5A, 0x06}
   if !bytes.Equal(chksum, msgDecoded.checksum[:]) {
-    t.Fatalf("checksums do not match, expected: % X but was: % X", 
+    t.Fatalf("checksums do not match, expected: % X but was: % X",
       chksum, msgDecoded.checksum[:])
   }
   if msgDecoded.magic != 1 {
@@ -175,7 +175,7 @@ func TestLongCompressedMessageRoundTrip(t *testing.T) {
 
   uncompressedMsgBytes := NewMessage(payloadBuf.Bytes()).Encode()
   msg := NewMessageWithCodec(uncompressedMsgBytes, DefaultCodecsMap[GZIP_COMPRESSION_ID])
-  
+
   zipper, _ := gzip.NewReader(bytes.NewBuffer(msg.payload))
   uncompressed := make([]byte, 200)
   n, _ := zipper.Read(uncompressed)
@@ -183,7 +183,7 @@ func TestLongCompressedMessageRoundTrip(t *testing.T) {
   zipper.Close()
 
   if !bytes.Equal(uncompressed, uncompressedMsgBytes) {
-    t.Fatalf("uncompressed: % X \npayload: % X bytes not equal", 
+    t.Fatalf("uncompressed: % X \npayload: % X bytes not equal",
       uncompressed, uncompressedMsgBytes)
   }
 
@@ -204,17 +204,17 @@ func TestLongCompressedMessageRoundTrip(t *testing.T) {
 }
 
 func TestMultipleCompressedMessages(t *testing.T) {
-  msgs := []*Message{NewMessage([]byte("testing")), 
-    NewMessage([]byte("multiple")), 
+  msgs := []*Message{NewMessage([]byte("testing")),
+    NewMessage([]byte("multiple")),
     NewMessage([]byte("messages")),
   }
   msg := NewCompressedMessages(msgs...)
-  
+
   length, msgsDecoded := DecodeWithDefaultCodecs(msg.Encode())
   if length == 0 || msgsDecoded == nil {
     t.Fatal("msgsDecoded is nil")
   }
-  
+
   // make sure the decompressed messages match what was put in
   for index, decodedMsg := range msgsDecoded {
     if !bytes.Equal(msgs[index].payload, decodedMsg.payload) {
@@ -272,6 +272,18 @@ func TestConsumeRequestEncoding(t *testing.T) {
   if !bytes.Equal(expected, request) {
     t.Errorf("expected length: %d but got: %d", len(expected), len(request))
     t.Errorf("expected: % X\n but got: % X", expected, request)
+    t.Fail()
+  }
+}
+
+func TestCorruptPacket(t *testing.T) {
+  total, msgs := DecodeWithDefaultCodecs([]byte{0x00, 0x00, 0x00, 0x18})
+  if total != 0 {
+    t.Errorf("total should be 0, but was: %d", total)
+    t.Fail()
+  }
+  if len(msgs) != 0 {
+    t.Errorf("msgs should be 0, but was: %d", len(msgs))
     t.Fail()
   }
 }

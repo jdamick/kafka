@@ -9,10 +9,9 @@ endif
 
 export GOPATH := $(NEW_GOPATH)
 
-
 kafka:
 	go install kafka
-	go test kafka
+	go test kafka -test.v
 
 tools: force
 	go install consumer
@@ -20,8 +19,10 @@ tools: force
 	go install publisher
 
 format:
-	gofmt -w -tabwidth=2 -tabindent=false src
+	gofmt -w -tabwidth=2 -tabs=false src
 
-full: format clean install tools
+clean:
+
+full: format clean kafka tools
 
 .PHONY: force 

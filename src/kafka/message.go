@@ -128,6 +128,11 @@ func Decode(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (uint32, []Me
 }
 
 func decodeMessage(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (uint32, *Message) {
+  if len(packet) < 5 {
+    log.Printf("malformed packet with length:%d (%#v), skipping\n", len(packet), packet)
+    return 0, nil
+  }
+
   length := binary.BigEndian.Uint32(packet[0:])
   if length > uint32(len(packet[4:])) {
     log.Printf("length mismatch, expected at least: %X, was: %X\n", length, len(packet[4:]))
