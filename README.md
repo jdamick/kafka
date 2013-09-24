@@ -19,12 +19,11 @@ Also set your GOPATH appropriately: http://weekly.golang.org/doc/code.html#tmp_1
 
 
 Build from source:
-<code>go install kafka</code>
+
+<code>make kafka</code>
 <br/>
 Make the tools (publisher & consumer) <br/>
-<code>go install consumer</code>
-<code>go install publisher</code>
-<code>go install offsets</code>
+<code>make tools</code>
 <br/>
 Start zookeeper, Kafka server <br/>
 For more info on Kafka, see: http://incubator.apache.org/kafka/quickstart.html
@@ -35,7 +34,7 @@ For more info on Kafka, see: http://incubator.apache.org/kafka/quickstart.html
 
 Start a consumer:
 <pre><code>
-   ./tools/consumer/consumer -topic test -consumeforever
+   $GOPATH/bin/consumer -topic test -consumeforever
   Consuming Messages :
   From: localhost:9092, topic: test, partition: 0
    ---------------------- 
@@ -45,7 +44,7 @@ Now the consumer will just poll until a message is received.
   
 Publish a message:
 <pre><code>
-  ./tools/publisher/publisher -topic test -message "Hello World"
+  $GOPATH/bin/publisher -topic test -message "Hello World"
 </code></pre>
 
 The consumer should output message.
