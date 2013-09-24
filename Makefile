@@ -8,9 +8,9 @@ fix:
 	go vet kafka
 
 tools: force kafka
-	cd consumer ; go build 
-	cd offsets ; go build 
-	cd publisher ; go build 
+	cd tools/consumer ; go install
+	cd tools/offsets ; go install
+	cd tools/publisher ; go install
 
 format:
 	gofmt -w -tabwidth=2 -tabs=false kafka
