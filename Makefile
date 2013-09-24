@@ -1,25 +1,19 @@
-where-am-i = $(CURDIR)/$(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST))
-THIS_MAKEFILE := $(call where-am-i)
-MAKEFILE_DIR=$(dir $(THIS_MAKEFILE))
-
-NEW_GOPATH = $(MAKEFILE_DIR)
-ifdef GOPATH
-  NEW_GOPATH+=":"$(GOPATH)
-endif
-
-export GOPATH := $(NEW_GOPATH)
-
 kafka:
-	go install kafka
-	go test kafka -test.v
+	go build -race
+	go install
+	go test -test.v
 
-tools: force
-	go install consumer
-	go install offsets
-	go install publisher
+fix:
+	go fix kafka
+	go vet kafka
+
+tools: force kafka
+	cd consumer ; go build 
+	cd offsets ; go build 
+	cd publisher ; go build 
 
 format:
-	gofmt -w -tabwidth=2 -tabs=false src
+	gofmt -w -tabwidth=2 -tabs=false kafka
 
 clean:
 

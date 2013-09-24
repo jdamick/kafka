@@ -1,10 +1,10 @@
 /*
  *  Copyright (c) 2011 NeuStar, Inc.
- *  All rights reserved.  
+ *  All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at 
+ *  You may obtain a copy of the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -13,9 +13,9 @@
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
- *  
+ *
  *  NeuStar, the Neustar logo and related names and logos are registered
- *  trademarks, service marks or tradenames of NeuStar, Inc. All other 
+ *  trademarks, service marks or tradenames of NeuStar, Inc. All other
  *  product names, company names, marks, logos and symbols may be trademarks
  *  of their respective owners.
  */
@@ -164,7 +164,7 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
   return num, err
 }
 
-// Get a list of valid offsets (up to maxNumOffsets) before the given time, where 
+// Get a list of valid offsets (up to maxNumOffsets) before the given time, where
 // time is in milliseconds (-1, from the latest offset available, -2 from the smallest offset available)
 // The result is a list of offsets, in descending order.
 func (consumer *BrokerConsumer) GetOffsets(time int64, maxNumOffsets uint32) ([]uint64, error) {

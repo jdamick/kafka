@@ -25,8 +25,7 @@ package main
 import (
   "flag"
   "fmt"
-  //kafka "svn.apache.org/repos/asf/incubator/kafka.svn/trunk/clients/go/src"
-  "kafka"
+  kafka "github.com/jdamick/kafka.go"
   "os"
 )
 
