@@ -25,7 +25,7 @@ package main
 import (
   "flag"
   "fmt"
-  kafka "github.com/jdamick/kafka.go"
+  kafka "github.com/jdamick/kafka"
   "os"
 )
 

@@ -28,7 +28,7 @@ import (
   "os"
   "os/signal"
   "strconv"
-  kafka "github.com/jdamick/kafka.go"
+  kafka "github.com/jdamick/kafka"
   "syscall"
 )
 
