@@ -200,3 +200,8 @@ func (consumer *BrokerConsumer) GetOffsets(time int64, maxNumOffsets uint32) ([]
 
   return offsets, err
 }
+
+// Get the current offset for a broker.
+func (consumer *BrokerConsumer) GetOffset() (uint64) {
+  return consumer.offset
+}
