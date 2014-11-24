@@ -23,29 +23,53 @@
 package kafka
 
 type BrokerPublisher struct {
-  broker *Broker
+	broker *Broker
 }
 
 func NewBrokerPublisher(hostname string, topic string, partition int) *BrokerPublisher {
-  return &BrokerPublisher{broker: newBroker(hostname, topic, partition)}
+	return &BrokerPublisher{broker: newBroker(hostname, topic, partition)}
 }
 
 func (b *BrokerPublisher) Publish(message *Message) (int, error) {
-  return b.BatchPublish(message)
+	return b.BatchPublish(message)
 }
 
 func (b *BrokerPublisher) BatchPublish(messages ...*Message) (int, error) {
-  conn, err := b.broker.connect()
-  if err != nil {
-    return -1, err
-  }
-  defer conn.Close()
-  // TODO: MULTIPRODUCE
-  request := b.broker.EncodePublishRequest(messages...)
-  num, err := conn.Write(request)
-  if err != nil {
-    return -1, err
-  }
+	conn, err := b.broker.connect()
+	if err != nil {
+		return -1, err
+	}
+	defer conn.Close()
+	// TODO: MULTIPRODUCE
+	request := b.broker.EncodePublishRequest(messages...)
+	num, err := conn.Write(request)
+	if err != nil {
+		return -1, err
+	}
 
-  return num, err
+	return num, err
+}
+
+func (b *BrokerPublisher) ProduceFromChannel(msgChan chan *Message, quit chan bool) (int, error) {
+	conn, err := b.broker.connect()
+	if err != nil {
+		return -1, err
+	}
+	defer conn.Close()
+
+	num := 0
+	for {
+		select {
+		case m := <-msgChan:
+			request := b.broker.EncodePublishRequest(m)
+			_, err := conn.Write(request)
+			if err != nil {
+				return num, err
+			}
+			num++
+		case <-quit:
+			break
+		}
+	}
+	return num, nil
 }
