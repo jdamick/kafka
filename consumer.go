@@ -23,19 +23,19 @@
 package kafka
 
 import (
-  "encoding/binary"
-  "errors"
-  "io"
-  "log"
-  "net"
-  "time"
+	"encoding/binary"
+	"errors"
+	"io"
+	"log"
+	"net"
+	"time"
 )
 
 type BrokerConsumer struct {
-  broker  *Broker
-  offset  uint64
-  maxSize uint32
-  codecs  map[byte]PayloadCodec
+	broker  *Broker
+	offset  uint64
+	maxSize uint32
+	codecs  map[byte]PayloadCodec
 }
 
 // Create a new broker consumer
@@ -45,10 +45,10 @@ type BrokerConsumer struct {
 // offset to start consuming from
 // maxSize (in bytes) of the message to consume (this should be at least as big as the biggest message to be published)
 func NewBrokerConsumer(hostname string, topic string, partition int, offset uint64, maxSize uint32) *BrokerConsumer {
-  return &BrokerConsumer{broker: newBroker(hostname, topic, partition),
-    offset:  offset,
-    maxSize: maxSize,
-    codecs:  DefaultCodecsMap}
+	return &BrokerConsumer{broker: newBroker(hostname, topic, partition),
+		offset:  offset,
+		maxSize: maxSize,
+		codecs:  DefaultCodecsMap}
 }
 
 // Simplified consumer that defaults the offset and maxSize to 0.
@@ -56,152 +56,171 @@ func NewBrokerConsumer(hostname string, topic string, partition int, offset uint
 // topic to consume
 // partition to consume from
 func NewBrokerOffsetConsumer(hostname string, topic string, partition int) *BrokerConsumer {
-  return &BrokerConsumer{broker: newBroker(hostname, topic, partition),
-    offset:  0,
-    maxSize: 0,
-    codecs:  DefaultCodecsMap}
+	return &BrokerConsumer{broker: newBroker(hostname, topic, partition),
+		offset:  0,
+		maxSize: 0,
+		codecs:  DefaultCodecsMap}
 }
 
 // Add Custom Payload Codecs for Consumer Decoding
 // payloadCodecs - an array of PayloadCodec implementations
 func (consumer *BrokerConsumer) AddCodecs(payloadCodecs []PayloadCodec) {
-  // merge to the default map, so one 'could' override the default codecs..
-  for k, v := range codecsMap(payloadCodecs) {
-    consumer.codecs[k] = v
-  }
+	// merge to the default map, so one 'could' override the default codecs..
+	for k, v := range codecsMap(payloadCodecs) {
+		consumer.codecs[k] = v
+	}
 }
 
-func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTimeoutMs int64, quit chan bool) (int, error) {
-  conn, err := consumer.broker.connect()
-  if err != nil {
-    return -1, err
-  }
+func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTimeoutMs int64, quit chan struct{}) (int, error) {
+	conn, err := consumer.broker.connect()
+	if err != nil {
+		return -1, err
+	}
 
-  num := 0
-  done := make(chan bool, 1)
-  go func() {
-    for {
-      _, err := consumer.consumeWithConn(conn, func(msg *Message) {
-        msgChan <- msg
-        num += 1
-      })
+	forceQuit := make(chan struct{})
 
-      if err != nil {
-        if err != io.EOF {
-          log.Println("Fatal Error: ", err)
-          panic(err)
-        }
-        quit <- true // force quit
-        break
-      }
-      time.Sleep(time.Millisecond * time.Duration(pollTimeoutMs))
-    }
-    done <- true
-  }()
-  // wait to be told to stop..
-  <-quit
-  conn.Close()
-  close(msgChan)
-  <-done
-  return num, err
+	num := 0
+	done := make(chan bool, 1)
+	go func() {
+		for {
+			_, err := consumer.consumeWithConn(conn, func(msg *Message) {
+				//fmt.Printf("WRITING msg to msgChan: %#v\n", msg)
+				//msg.Print()
+				msgChan <- msg
+				num += 1
+			}, quit)
+
+			if err != nil {
+				if err != io.EOF && err.Error() != "use of closed network connection" { //
+					log.Println("Fatal Error: ", err)
+					panic(err)
+				}
+				close(forceQuit)
+				break
+			}
+			time.Sleep(time.Millisecond * time.Duration(pollTimeoutMs))
+		}
+		done <- true
+	}()
+
+	// wait to be told to stop...
+	select {
+	case <-forceQuit:
+		// stopping from within this function
+	case <-quit:
+		// we were told to stop from outside
+	}
+
+	conn.Close()
+	<-done
+	close(msgChan)
+	return num, err
 }
 
 type MessageHandlerFunc func(msg *Message)
 
-func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc) (int, error) {
-  conn, err := consumer.broker.connect()
-  if err != nil {
-    return -1, err
-  }
-  defer conn.Close()
+func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc, stop <-chan struct{}) (int, error) {
+	conn, err := consumer.broker.connect()
+	if err != nil {
+		return -1, err
+	}
+	defer conn.Close()
 
-  num, err := consumer.consumeWithConn(conn, handlerFunc)
+	num, err := consumer.consumeWithConn(conn, handlerFunc, stop)
 
-  if err != nil {
-    log.Println("Fatal Error: ", err)
-  }
+	if err != nil {
+		log.Println("Fatal Error: ", err)
+	}
 
-  return num, err
+	return num, err
 }
 
-func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc MessageHandlerFunc) (int, error) {
-  _, err := conn.Write(consumer.broker.EncodeConsumeRequest(consumer.offset, consumer.maxSize))
-  if err != nil {
-    return -1, err
-  }
+func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc MessageHandlerFunc, stop <-chan struct{}) (int, error) {
+	_, err := conn.Write(consumer.broker.EncodeConsumeRequest(consumer.offset, consumer.maxSize))
+	if err != nil {
+		return -1, err
+	}
 
-  length, payload, err := consumer.broker.readResponse(conn)
+	length, payload, err := consumer.broker.readResponse(conn)
 
-  if err != nil {
-    return -1, err
-  }
+	if err != nil {
+		return -1, err
+	}
 
-  num := 0
-  if length > 2 {
-    // parse out the messages
-    var currentOffset uint64 = 0
-    for currentOffset <= uint64(length-4) {
-      totalLength, msgs := Decode(payload[currentOffset:], consumer.codecs)
-      if msgs == nil {
-        // update the broker's offset for next consumption incase they want to skip this message and keep going
-        consumer.offset += currentOffset
-        return num, errors.New("Error Decoding Message")
-      }
-      msgOffset := consumer.offset + currentOffset
-      for _, msg := range msgs {
-        // update all of the messages offset
-        // multiple messages can be at the same offset (compressed for example)
-        msg.offset = msgOffset
-        handlerFunc(&msg)
-        num += 1
-      }
-      currentOffset += uint64(4 + totalLength)
-    }
-    // update the broker's offset for next consumption
-    consumer.offset += currentOffset
-  }
+	num := 0
+	if length > 2 {
+		// parse out the messages
+		var currentOffset uint64 = 0
+		for currentOffset <= uint64(length-4) {
+			totalLength, msgs := Decode(payload[currentOffset:], consumer.codecs)
+			if msgs == nil {
+				// update the broker's offset for next consumption incase they want to skip this message and keep going
+				consumer.offset += currentOffset
+				return num, errors.New("Error Decoding Message")
+			}
+			msgOffset := consumer.offset + currentOffset
+			for _, msg := range msgs {
+				// do a non-blocking select to see whether we received a request to stop reading
+				select {
+				case <-stop:
+					//fmt.Println("received request to stop")
+					return num, err
+				default:
+					// update all of the messages offset
+					// multiple messages can be at the same offset (compressed for example)
+					msg.offset = msgOffset
+					handlerFunc(&msg)
+					num += 1
+				}
 
-  return num, err
+			}
+			currentOffset += uint64(4 + totalLength)
+		}
+		// update the broker's offset for next consumption
+		consumer.offset += currentOffset
+	}
+
+	return num, err
 }
 
 // Get a list of valid offsets (up to maxNumOffsets) before the given time, where
 // time is in milliseconds (-1, from the latest offset available, -2 from the smallest offset available)
 // The result is a list of offsets, in descending order.
 func (consumer *BrokerConsumer) GetOffsets(time int64, maxNumOffsets uint32) ([]uint64, error) {
-  offsets := make([]uint64, 0)
+	offsets := make([]uint64, 0)
 
-  conn, err := consumer.broker.connect()
-  if err != nil {
-    return offsets, err
-  }
+	conn, err := consumer.broker.connect()
+	if err != nil {
+		return offsets, err
+	}
 
-  defer conn.Close()
+	defer conn.Close()
 
-  _, err = conn.Write(consumer.broker.EncodeOffsetRequest(time, maxNumOffsets))
-  if err != nil {
-    return offsets, err
-  }
+	_, err = conn.Write(consumer.broker.EncodeOffsetRequest(time, maxNumOffsets))
+	if err != nil {
+		return offsets, err
+	}
 
-  length, payload, err := consumer.broker.readResponse(conn)
-  if err != nil {
-    return offsets, err
-  }
+	length, payload, err := consumer.broker.readResponse(conn)
+	if err != nil {
+		return offsets, err
+	}
 
-  if length > 4 {
-    // get the number of offsets
-    numOffsets := binary.BigEndian.Uint32(payload[0:])
-    var currentOffset uint64 = 4
-    for currentOffset < uint64(length-4) && uint32(len(offsets)) < numOffsets {
-      offset := binary.BigEndian.Uint64(payload[currentOffset:])
-      offsets = append(offsets, offset)
-      currentOffset += 8 // offset size
-    }
-  }
+	if length > 4 {
+		// get the number of offsets
+		numOffsets := binary.BigEndian.Uint32(payload[0:])
+		var currentOffset uint64 = 4
+		for currentOffset < uint64(length-4) && uint32(len(offsets)) < numOffsets {
+			offset := binary.BigEndian.Uint64(payload[currentOffset:])
+			offsets = append(offsets, offset)
+			currentOffset += 8 // offset size
+		}
+	}
 
-  return offsets, err
+	return offsets, err
 }
 
 // Get the current offset for a broker.
-func (consumer *BrokerConsumer) GetOffset() (uint64) {
-  return consumer.offset
+func (consumer *BrokerConsumer) GetOffset() uint64 {
+	return consumer.offset
 }
