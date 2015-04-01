@@ -24,7 +24,7 @@ package kafka
 
 import (
 	"encoding/binary"
-	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -138,6 +138,7 @@ func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc, stop <-c
 func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc MessageHandlerFunc, stop <-chan struct{}) (int, error) {
 	_, err := conn.Write(consumer.broker.EncodeConsumeRequest(consumer.offset, consumer.maxSize))
 	if err != nil {
+		log.Println("Failed kafka fetch request", err.Error())
 		return -1, err
 	}
 
@@ -156,7 +157,7 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 			if msgs == nil {
 				// update the broker's offset for next consumption incase they want to skip this message and keep going
 				consumer.offset += currentOffset
-				return num, errors.New("Error Decoding Message")
+				return num, fmt.Errorf("Error Decoding Message at offset %d (msg offset %d)", consumer.offset, currentOffset)
 			}
 			msgOffset := consumer.offset + currentOffset
 			for _, msg := range msgs {
