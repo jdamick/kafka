@@ -23,43 +23,49 @@
 package kafka
 
 import (
-  "bytes"
-  "compress/gzip"
-  //  "log"
+	"bytes"
+	"compress/gzip"
+	"encoding/binary"
+
+	"code.google.com/p/snappy-go/snappy"
 )
 
 const (
-  NO_COMPRESSION_ID   = 0
-  GZIP_COMPRESSION_ID = 1
+	NO_COMPRESSION_ID     = 0
+	GZIP_COMPRESSION_ID   = 1
+	SNAPPY_COMPRESSION_ID = 2
 )
+
+var snappyMagic = []byte{130, 83, 78, 65, 80, 80, 89, 0}
 
 type PayloadCodec interface {
 
-  // the 1 byte id of the codec
-  Id() byte
+	// the 1 byte id of the codec
+	Id() byte
 
-  // encoder interface for compression implementation
-  Encode(data []byte) []byte
+	// encoder interface for compression implementation
+	Encode(data []byte) []byte
 
-  // decoder interface for decompression implementation
-  Decode(data []byte) []byte
+	// decoder interface for decompression implementation
+	Decode(data []byte) []byte
 }
 
 // Default Codecs
 
 var DefaultCodecs = []PayloadCodec{
-  new(NoCompressionPayloadCodec),
-  new(GzipPayloadCodec),
+	new(NoCompressionPayloadCodec),
+	new(GzipPayloadCodec),
+	new(SnappyPayloadCodec),
 }
 
 var DefaultCodecsMap = codecsMap(DefaultCodecs)
 
 func codecsMap(payloadCodecs []PayloadCodec) map[byte]PayloadCodec {
-  payloadCodecsMap := make(map[byte]PayloadCodec, len(payloadCodecs))
-  for _, c := range payloadCodecs {
-    payloadCodecsMap[c.Id()] = c
-  }
-  return payloadCodecsMap
+	payloadCodecsMap := make(map[byte]PayloadCodec, len(payloadCodecs))
+	for _, c := range payloadCodecs {
+		payloadCodecsMap[c.Id()] = c
+	}
+	return payloadCodecsMap
 }
 
 // No compression codec, noop
@@ -68,15 +74,15 @@ type NoCompressionPayloadCodec struct {
 }
 
 func (codec *NoCompressionPayloadCodec) Id() byte {
-  return NO_COMPRESSION_ID
+	return NO_COMPRESSION_ID
 }
 
 func (codec *NoCompressionPayloadCodec) Encode(data []byte) []byte {
-  return data
+	return data
 }
 
 func (codec *NoCompressionPayloadCodec) Decode(data []byte) []byte {
-  return data
+	return data
 }
 
 // Gzip Codec
@@ -85,30 +91,71 @@ type GzipPayloadCodec struct {
 }
 
 func (codec *GzipPayloadCodec) Id() byte {
-  return GZIP_COMPRESSION_ID
+	return GZIP_COMPRESSION_ID
 }
 
 func (codec *GzipPayloadCodec) Encode(data []byte) []byte {
-  buf := bytes.NewBuffer([]byte{})
-  zipper, _ := gzip.NewWriterLevel(buf, gzip.BestSpeed)
-  zipper.Write(data)
-  zipper.Close()
-  return buf.Bytes()
+	buf := bytes.NewBuffer([]byte{})
+	zipper, _ := gzip.NewWriterLevel(buf, gzip.BestSpeed)
+	zipper.Write(data)
+	zipper.Close()
+	return buf.Bytes()
 }
 
 func (codec *GzipPayloadCodec) Decode(data []byte) []byte {
-  buf := bytes.NewBuffer([]byte{})
-  zipper, _ := gzip.NewReader(bytes.NewBuffer(data))
-  unzipped := make([]byte, 100)
-  for {
-    n, err := zipper.Read(unzipped)
-    if n > 0 && err == nil {
-      buf.Write(unzipped[0:n])
-    } else {
-      break
-    }
-  }
+	buf := bytes.NewBuffer([]byte{})
+	zipper, _ := gzip.NewReader(bytes.NewBuffer(data))
+	unzipped := make([]byte, 100)
+	for {
+		n, err := zipper.Read(unzipped)
+		if n > 0 && err == nil {
+			buf.Write(unzipped[0:n])
+		} else {
+			break
+		}
+	}
 
-  zipper.Close()
-  return buf.Bytes()
+	zipper.Close()
+	return buf.Bytes()
+}
+
+// Snappy Codec
+
+type SnappyPayloadCodec struct {
+}
+
+func (codec *SnappyPayloadCodec) Id() byte {
+	return SNAPPY_COMPRESSION_ID
+}
+
+func (codec *SnappyPayloadCodec) Encode(data []byte) []byte {
+	encoded, err := snappy.Encode(nil, data)
+	if nil != err {
+		panic("Could not encode message: " + err.Error())
+	}
+	return encoded
+}
+
+func (codec *SnappyPayloadCodec) Decode(data []byte) []byte {
+	if bytes.Equal(data[:8], snappyMagic) {
+		var pos = uint32(16)
+		var max = uint32(len(data))
+		var decoded []byte
+		for pos < max {
+			size := binary.BigEndian.Uint32(data[pos : pos+4])
+			pos = pos + 4
+			chunk, err := snappy.Decode(nil, data[pos:pos+size])
+			if nil != err {
+				panic("Could not decode Snappy-encoded message: " + err.Error())
+			}
+			pos = pos + size
+			decoded = append(decoded, chunk...)
+		}
+		return decoded
+	}
+	decoded, err := snappy.Decode(nil, data)
+	if nil != err {
+		panic("Could not decode Snappy-encoded message: " + err.Error())
+	}
+	return decoded
 }
