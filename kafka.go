@@ -23,73 +23,71 @@
 package kafka
 
 import (
-  "bufio"
-  "encoding/binary"
-  "errors"
-  "fmt"
-  "io"
-  "log"
-  "net"
+	"bufio"
+	"encoding/binary"
+	"fmt"
+	"io"
+	"log"
+	"net"
 )
 
 const (
-  NETWORK = "tcp"
+	NETWORK = "tcp"
 )
 
 type Broker struct {
-  topic     string
-  partition int
-  hostname  string
+	topic     string
+	partition int
+	hostname  string
 }
 
 func newBroker(hostname string, topic string, partition int) *Broker {
-  return &Broker{topic: topic,
-    partition: partition,
-    hostname:  hostname}
+	return &Broker{topic: topic,
+		partition: partition,
+		hostname:  hostname}
 }
 
 func (b *Broker) connect() (conn *net.TCPConn, error error) {
-  raddr, err := net.ResolveTCPAddr(NETWORK, b.hostname)
-  if err != nil {
-    log.Println("Fatal Error: ", err)
-    return nil, err
-  }
-  conn, err = net.DialTCP(NETWORK, nil, raddr)
-  if err != nil {
-    log.Println("Fatal Error: ", err)
-    return nil, err
-  }
-  return conn, error
+	raddr, err := net.ResolveTCPAddr(NETWORK, b.hostname)
+	if err != nil {
+		log.Println("Fatal Error: ", err)
+		return nil, err
+	}
+	conn, err = net.DialTCP(NETWORK, nil, raddr)
+	if err != nil {
+		log.Println("Fatal Error: ", err)
+		return nil, err
+	}
+	return conn, error
 }
 
 // returns length of response & payload & err
 func (b *Broker) readResponse(conn *net.TCPConn) (uint32, []byte, error) {
-  reader := bufio.NewReader(conn)
-  length := make([]byte, 4)
-  lenRead, err := io.ReadFull(reader, length)
-  if err != nil {
-    return 0, []byte{}, err
-  }
-  if lenRead != 4 || lenRead < 0 {
-    return 0, []byte{}, errors.New("invalid length of the packet length field")
-  }
+	reader := bufio.NewReader(conn)
+	length := make([]byte, 4)
+	lenRead, err := io.ReadFull(reader, length)
+	if err != nil {
+		return 0, []byte{}, err
+	}
+	if lenRead != 4 {
+		return 0, []byte{}, fmt.Errorf("invalid length of the packet length field (expected 4 bytes, got %d)", lenRead)
+	}
 
-  expectedLength := binary.BigEndian.Uint32(length)
-  messages := make([]byte, expectedLength)
-  lenRead, err = io.ReadFull(reader, messages)
-  if err != nil {
-    return 0, []byte{}, err
-  }
+	expectedLength := binary.BigEndian.Uint32(length)
+	messages := make([]byte, expectedLength)
+	lenRead, err = io.ReadFull(reader, messages)
+	if err != nil {
+		return 0, []byte{}, err
+	}
 
-  if uint32(lenRead) != expectedLength {
-    return 0, []byte{}, errors.New(fmt.Sprintf("Fatal Error: Unexpected Length: %d  expected:  %d", lenRead, expectedLength))
-  }
+	if uint32(lenRead) != expectedLength {
+		return 0, []byte{}, fmt.Errorf("Fatal Error: Unexpected Length: %d  expected:  %d", lenRead, expectedLength)
+	}
 
-  errorCode := binary.BigEndian.Uint16(messages[0:2])
-  if errorCode != 0 {
-    log.Println("errorCode: ", errorCode)
-    return 0, []byte{}, errors.New(
-      fmt.Sprintf("Broker Response Error: %d", errorCode))
-  }
-  return expectedLength, messages[2:], nil
+	errorCode := binary.BigEndian.Uint16(messages[0:2])
+	if errorCode != 0 {
+		log.Println("errorCode: ", errorCode)
+		return 0, []byte{}, fmt.Errorf("Broker Response Error: %d", errorCode)
+	}
+	return expectedLength, messages[2:], nil
 }
