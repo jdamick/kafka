@@ -22,9 +22,14 @@
 
 package kafka
 
+import (
+	"net"
+)
+
 // BrokerPublisher holds a Kafka broker instance and the publisher settings
 type BrokerPublisher struct {
 	broker *Broker
+	conn   *net.TCPConn
 }
 
 // NewBrokerPublisher returns a new broker instance for a publisher
@@ -39,18 +44,30 @@ func (b *BrokerPublisher) Publish(message *Message) (int, error) {
 
 // BatchPublish writes a batch of messages to the kafka broker
 func (b *BrokerPublisher) BatchPublish(messages ...*Message) (int, error) {
-	conn, err := b.broker.connect()
-	if err != nil {
-		return -1, err
-	}
-	defer conn.Close()
-	// TODO: MULTIPRODUCE
 	request := b.broker.EncodePublishRequest(messages...)
-	num, err := conn.Write(request)
-	if err != nil {
-		return -1, err
-	}
 
+	var err error
+	// only establish one connection
+	if nil == b.conn {
+		b.conn, err = b.broker.connect()
+		if nil != err {
+			return -1, err
+		}
+	}
+	// attempt sending the request reusing the existing connection
+	num, err := b.conn.Write(request)
+	if err != nil {
+		// the connection might have gone away, attempt reconnecting
+		b.conn, err = b.broker.connect()
+		if nil != err {
+			return -1, err
+		}
+		num, err := b.conn.Write(request)
+		if nil != err {
+			return -1, err
+		}
+		return num, err
+	}
 	return num, err
 }
 
