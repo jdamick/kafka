@@ -8,7 +8,19 @@ Go language: (http://golang.org/) <br/>
 
 ## Changes
 
-4/13 - Merged back from the apache repository & outstanding patches from jira applied
+### April 2015
+
+* added support for Snappy compression
+* fixed handling of partial messages at the end of each fetch response
+* added ProduceFromChannel() method in the publisher, mirroring the ConsumeOnChannel() method in the consumer
+* changed the quit channel type to empty struct{}, adding ability to stop the consumer on demand without race conditions
+* reused connection in BatchPublish(), instead of establishing a brand new connection every time.
+* applied gofmt / golint on the code (renamed Id() to ID() for compliance)
+* added comments
+
+### April 2013
+
+* Merged back from the apache repository & outstanding patches from jira applied
 
 
 ## Get up and running ##
