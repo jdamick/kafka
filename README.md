@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/jdamick/kafka.png?branch=master)](https://travis-ci.org/jdamick/kafka)
 
-# kafka - Publisher & Consumer for Kafka in Go #
+# kafka - Publisher & Consumer for Kafka 0.7.x in Go #
 
 Kafka is a distributed publish-subscribe messaging system: (http://kafka.apache.org)
 
