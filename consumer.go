@@ -24,7 +24,6 @@ package kafka
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -167,11 +166,6 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 		currentOffset := uint64(0)
 		for currentOffset <= uint64(length-4) {
 			totalLength, msgs, err1 := Decode(payload[currentOffset:], consumer.codecs)
-			if msgs == nil {
-				// update the broker's offset for the next consumption in case they want to skip this message and keep going
-				consumer.offset += currentOffset
-				return num, fmt.Errorf("Error Decoding Message at offset %d (msg offset %d)", consumer.offset, currentOffset)
-			}
 			if ErrIncompletePacket == err1 {
 				// Reached the end of the current packet and the last message is incomplete.
 				// Need a new Fetch Request from a newer offset, or a larger packet.
