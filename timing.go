@@ -23,27 +23,31 @@
 package kafka
 
 import (
-  "log"
-  "time"
+	"log"
+	"time"
 )
 
+// Timing wraps a timer
 type Timing struct {
-  label string
-  start int64
-  stop  int64
+	label string
+	start int64
+	stop  int64
 }
 
+// StartTiming returns a new timer
 func StartTiming(label string) *Timing {
-  return &Timing{label: label, start: time.Now().UnixNano()}
+	return &Timing{label: label, start: time.Now().UnixNano()}
 }
 
+// Stop stops the timer
 func (t *Timing) Stop() {
-  t.stop = time.Now().UnixNano()
+	t.stop = time.Now().UnixNano()
 }
 
+// Print logs timing information associated with the timer
 func (t *Timing) Print() {
-  if t.stop == 0 {
-    t.Stop()
-  }
-  log.Printf("%s took: %f ms\n", t.label, float64(t.stop-t.start)/1000000)
+	if t.stop == 0 {
+		t.Stop()
+	}
+	log.Printf("%s took: %f ms\n", t.label, float64(t.stop-t.start)/1000000)
 }

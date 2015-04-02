@@ -23,79 +23,84 @@
 package kafka
 
 import (
-  "bytes"
-  "encoding/binary"
+	"bytes"
+	"encoding/binary"
 )
 
+// RequestType is a typedef for the request type flag
 type RequestType uint16
 
 // Request Types
 const (
-  REQUEST_PRODUCE      RequestType = 0
-  REQUEST_FETCH                    = 1
-  REQUEST_MULTIFETCH               = 2
-  REQUEST_MULTIPRODUCE             = 3
-  REQUEST_OFFSETS                  = 4
+	REQUEST_PRODUCE      RequestType = 0
+	REQUEST_FETCH                    = 1
+	REQUEST_MULTIFETCH               = 2
+	REQUEST_MULTIPRODUCE             = 3
+	REQUEST_OFFSETS                  = 4
 )
 
+// EncodeRequestHeader marshals a request into kafka's wire format
 // Request Header: <REQUEST_SIZE: uint32><REQUEST_TYPE: uint16><TOPIC SIZE: uint16><TOPIC: bytes><PARTITION: uint32>
 func (b *Broker) EncodeRequestHeader(requestType RequestType) *bytes.Buffer {
-  request := bytes.NewBuffer([]byte{})
-  request.Write(uint32bytes(0)) // placeholder for request size
-  request.Write(uint16bytes(int(requestType)))
-  request.Write(uint16bytes(len(b.topic)))
-  request.WriteString(b.topic)
-  request.Write(uint32bytes(b.partition))
+	request := bytes.NewBuffer([]byte{})
+	request.Write(uint32bytes(0)) // placeholder for request size
+	request.Write(uint16bytes(int(requestType)))
+	request.Write(uint16bytes(len(b.topic)))
+	request.WriteString(b.topic)
+	request.Write(uint32bytes(b.partition))
 
-  return request
+	return request
 }
 
 // after writing to the buffer is complete, encode the size of the request in the request.
 func encodeRequestSize(request *bytes.Buffer) {
-  binary.BigEndian.PutUint32(request.Bytes()[0:], uint32(request.Len()-4))
+	binary.BigEndian.PutUint32(request.Bytes()[0:], uint32(request.Len()-4))
 }
 
+// EncodeOffsetRequest encodes an offset request into kafka's wire format
 // <Request Header><TIME: uint64><MAX NUMBER of OFFSETS: uint32>
 func (b *Broker) EncodeOffsetRequest(time int64, maxNumOffsets uint32) []byte {
-  request := b.EncodeRequestHeader(REQUEST_OFFSETS)
-  // specific to offset request
-  request.Write(uint64ToUint64bytes(uint64(time)))
-  request.Write(uint32toUint32bytes(maxNumOffsets))
+	request := b.EncodeRequestHeader(REQUEST_OFFSETS)
+	// specific to offset request
+	request.Write(uint64ToUint64bytes(uint64(time)))
+	request.Write(uint32toUint32bytes(maxNumOffsets))
 
-  encodeRequestSize(request)
+	encodeRequestSize(request)
 
-  return request.Bytes()
+	return request.Bytes()
 }
 
+// EncodeConsumeRequest encodes a fetch request into kafka's wire format
 // <Request Header><OFFSET: uint64><MAX SIZE: uint32>
 func (b *Broker) EncodeConsumeRequest(offset uint64, maxSize uint32) []byte {
-  request := b.EncodeRequestHeader(REQUEST_FETCH)
-  // specific to consume request
-  request.Write(uint64ToUint64bytes(offset))
-  request.Write(uint32toUint32bytes(maxSize))
+	request := b.EncodeRequestHeader(REQUEST_FETCH)
+	// specific to consume request
+	request.Write(uint64ToUint64bytes(offset))
+	request.Write(uint32toUint32bytes(maxSize))
 
-  encodeRequestSize(request)
+	encodeRequestSize(request)
 
-  return request.Bytes()
+	return request.Bytes()
 }
 
+// EncodePublishRequest encodes a publish request into kafka's wire format
 // <Request Header><MESSAGE SET SIZE: uint32><MESSAGE SETS>
 func (b *Broker) EncodePublishRequest(messages ...*Message) []byte {
-  // 4 + 2 + 2 + topicLength + 4 + 4
-  request := b.EncodeRequestHeader(REQUEST_PRODUCE)
+	// 4 + 2 + 2 + topicLength + 4 + 4
+	request := b.EncodeRequestHeader(REQUEST_PRODUCE)
 
-  messageSetSizePos := request.Len()
-  request.Write(uint32bytes(0)) // placeholder message len
+	messageSetSizePos := request.Len()
+	request.Write(uint32bytes(0)) // placeholder message len
 
-  written := 0
-  for _, message := range messages {
-    wrote, _ := request.Write(message.Encode())
-    written += wrote
-  }
+	written := 0
+	for _, message := range messages {
+		wrote, _ := request.Write(message.Encode())
+		written += wrote
+	}
 
-  // now add the accumulated size of that the message set was
-  binary.BigEndian.PutUint32(request.Bytes()[messageSetSizePos:], uint32(written))
-  // now add the size of the whole to the first uint32
-  encodeRequestSize(request)
-  return request.Bytes()
+	// now add the accumulated size of that the message set was
+	binary.BigEndian.PutUint32(request.Bytes()[messageSetSizePos:], uint32(written))
+	// now add the size of the whole to the first uint32
+	encodeRequestSize(request)
+	return request.Bytes()
 }
