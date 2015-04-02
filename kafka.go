@@ -32,9 +32,11 @@ import (
 )
 
 const (
+	// NETWORK constant for supported network protocol
 	NETWORK = "tcp"
 )
 
+// Broker contains the generic kafka parameters for a broker
 type Broker struct {
 	topic     string
 	partition int

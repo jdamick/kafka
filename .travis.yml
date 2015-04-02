@@ -2,3 +2,6 @@ language: go
 
 go:
   - tip
+
+install:
+  - go get code.google.com/p/snappy-go/snappy

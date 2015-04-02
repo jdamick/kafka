@@ -22,18 +22,22 @@
 
 package kafka
 
+// BrokerPublisher holds a Kafka broker instance and the publisher settings
 type BrokerPublisher struct {
 	broker *Broker
 }
 
+// NewBrokerPublisher returns a new broker instance for a publisher
 func NewBrokerPublisher(hostname string, topic string, partition int) *BrokerPublisher {
 	return &BrokerPublisher{broker: newBroker(hostname, topic, partition)}
 }
 
+// Publish writes a message to the kafka broker
 func (b *BrokerPublisher) Publish(message *Message) (int, error) {
 	return b.BatchPublish(message)
 }
 
+// BatchPublish writes a batch of messages to the kafka broker
 func (b *BrokerPublisher) BatchPublish(messages ...*Message) (int, error) {
 	conn, err := b.broker.connect()
 	if err != nil {
@@ -50,6 +54,7 @@ func (b *BrokerPublisher) BatchPublish(messages ...*Message) (int, error) {
 	return num, err
 }
 
+// ProduceFromChannel reads the messages from a Kafka log and sends them to a Message channel
 func (b *BrokerPublisher) ProduceFromChannel(msgChan chan *Message, quit chan struct{}) (int, error) {
 	conn, err := b.broker.connect()
 	if err != nil {

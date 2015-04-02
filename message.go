@@ -31,12 +31,16 @@ import (
 )
 
 const (
+	// MAGIC_DEFAULT is the default value for the Kafka wire format.
 	// Compression Support uses '1' - https://cwiki.apache.org/confluence/display/KAFKA/Compression
 	MAGIC_DEFAULT = 1
+
+	// NO_LEN_HEADER_SIZE is the length of the header after the 4 bytes representing the length
 	// magic + compression + chksum
 	NO_LEN_HEADER_SIZE = 1 + 1 + 4
 )
 
+// Error constants
 var (
 	ErrMalformedPacket       = fmt.Errorf("kafka message malformed, expecting at least 4 bytes")
 	ErrIncompletePacket      = fmt.Errorf("kafka message incomplete, expecting larger packet")
@@ -45,6 +49,7 @@ var (
 	ErrChecksumMismatch      = fmt.Errorf("checksum mismatch on kafka message")
 )
 
+// Message wraps the message headers and the payload
 type Message struct {
 	magic       byte
 	compression byte
@@ -55,37 +60,42 @@ type Message struct {
 
 }
 
+// Offset returns the position of the current message in the log
 func (m *Message) Offset() uint64 {
 	return m.offset
 }
 
+// Payload returns the actual payload of the message, as byte array
 func (m *Message) Payload() []byte {
 	return m.payload
 }
 
+// PayloadString returns the actual payload of the message, as string
 func (m *Message) PayloadString() string {
 	return string(m.payload)
 }
 
+// NewMessageWithCodec creates a new Message instance, with the payload encoded with the given codec
 func NewMessageWithCodec(payload []byte, codec PayloadCodec) *Message {
 	message := &Message{}
 	message.magic = byte(MAGIC_DEFAULT)
-	message.compression = codec.Id()
+	message.compression = codec.ID()
 	message.payload = codec.Encode(payload)
 	binary.BigEndian.PutUint32(message.checksum[0:], crc32.ChecksumIEEE(message.payload))
 	return message
 }
 
-// Default is is create a message with no compression
+// NewMessage creates a message with no compression
 func NewMessage(payload []byte) *Message {
 	return NewMessageWithCodec(payload, DefaultCodecsMap[NO_COMPRESSION_ID])
 }
 
-// Create a Message using the default compression method (gzip)
+// NewCompressedMessage creates a Message using the default compression method (gzip)
 func NewCompressedMessage(payload []byte) *Message {
 	return NewCompressedMessages(NewMessage(payload))
 }
 
+// NewCompressedMessages encodes a batch of Messages using the default compression method (gzip)
 func NewCompressedMessages(messages ...*Message) *Message {
 	buf := bytes.NewBuffer([]byte{})
 	for _, message := range messages {
@@ -94,6 +104,7 @@ func NewCompressedMessages(messages ...*Message) *Message {
 	return NewMessageWithCodec(buf.Bytes(), DefaultCodecsMap[GZIP_COMPRESSION_ID])
 }
 
+// Encode marshals the Message object into kafka's wire format
 // MESSAGE SET: <MESSAGE LENGTH: uint32><MAGIC: 1 byte><COMPRESSION: 1 byte><CHECKSUM: uint32><MESSAGE PAYLOAD: bytes>
 func (m *Message) Encode() []byte {
 	msgLen := NO_LEN_HEADER_SIZE + len(m.payload)
@@ -108,6 +119,7 @@ func (m *Message) Encode() []byte {
 	return msg
 }
 
+// DecodeWithDefaultCodecs decodes the message(s) with the default codecs list
 func DecodeWithDefaultCodecs(packet []byte) (uint32, []Message, error) {
 	return Decode(packet, DefaultCodecsMap)
 }
@@ -203,18 +215,19 @@ func decodeMessage(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (*Mess
 	return &msg, nil
 }
 
-func (msg *Message) Print() {
+// Print is a debug method to print the Message object
+func (m *Message) Print() {
 	log.Println("----- Begin Message ------")
-	log.Printf("magic: %X\n", msg.magic)
-	log.Printf("compression: %X\n", msg.compression)
-	log.Printf("checksum: %X\n", msg.checksum)
-	if len(msg.payload) < 1048576 { // 1 MB
-		log.Printf("payload: % X\n", msg.payload)
-		log.Printf("payload(string): %s\n", msg.PayloadString())
+	log.Printf("magic: %X\n", m.magic)
+	log.Printf("compression: %X\n", m.compression)
+	log.Printf("checksum: %X\n", m.checksum)
+	if len(m.payload) < 1048576 { // 1 MB
+		log.Printf("payload: % X\n", m.payload)
+		log.Printf("payload(string): %s\n", m.PayloadString())
 	} else {
-		log.Printf("long payload, length: %d\n", len(msg.payload))
+		log.Printf("long payload, length: %d\n", len(m.payload))
 	}
-	log.Printf("length: %d\n", msg.totalLength)
-	log.Printf("offset: %d\n", msg.offset)
+	log.Printf("length: %d\n", m.totalLength)
+	log.Printf("offset: %d\n", m.offset)
 	log.Println("----- End Message ------")
 }
