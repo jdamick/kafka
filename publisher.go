@@ -50,7 +50,7 @@ func (b *BrokerPublisher) BatchPublish(messages ...*Message) (int, error) {
 	return num, err
 }
 
-func (b *BrokerPublisher) ProduceFromChannel(msgChan chan *Message, quit chan bool) (int, error) {
+func (b *BrokerPublisher) ProduceFromChannel(msgChan chan *Message, quit chan struct{}) (int, error) {
 	conn, err := b.broker.connect()
 	if err != nil {
 		return -1, err

@@ -82,9 +82,9 @@ func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTime
 	num := 0
 	done := make(chan bool, 1)
 	go func() {
+	Loop:
 		for {
 			_, err := consumer.consumeWithConn(conn, func(msg *Message) {
-				//fmt.Printf("WRITING msg to msgChan: %#v\n", msg)
 				//msg.Print()
 				msgChan <- msg
 				num += 1
@@ -98,7 +98,15 @@ func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTime
 				close(forceQuit)
 				break
 			}
-			time.Sleep(time.Millisecond * time.Duration(pollTimeoutMs))
+
+			// time.Sleep(time.Millisecond * time.Duration(pollTimeoutMs))
+			select {
+			case <-quit:
+				log.Println("Kafka consumer - received request to stop")
+				break Loop
+			case <-time.After(time.Millisecond * time.Duration(pollTimeoutMs)):
+				// carry on after the polling interval
+			}
 		}
 		done <- true
 	}()
@@ -138,11 +146,12 @@ func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc, stop <-c
 func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc MessageHandlerFunc, stop <-chan struct{}) (int, error) {
 	_, err := conn.Write(consumer.broker.EncodeConsumeRequest(consumer.offset, consumer.maxSize))
 	if err != nil {
-		log.Println("Failed kafka fetch request", err.Error())
+		log.Println("Failed kafka fetch request:", err.Error())
 		return -1, err
 	}
 
 	length, payload, err := consumer.broker.readResponse(conn)
+	//log.Println("kafka fetch request of", length, "bytes starting from offset", consumer.offset)
 
 	if err != nil {
 		return -1, err
@@ -153,21 +162,26 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 		// parse out the messages
 		var currentOffset uint64 = 0
 		for currentOffset <= uint64(length-4) {
-			totalLength, msgs := Decode(payload[currentOffset:], consumer.codecs)
+			totalLength, msgs, err1 := Decode(payload[currentOffset:], consumer.codecs)
 			if msgs == nil {
-				// update the broker's offset for next consumption incase they want to skip this message and keep going
+				// update the broker's offset for the next consumption in case they want to skip this message and keep going
 				consumer.offset += currentOffset
 				return num, fmt.Errorf("Error Decoding Message at offset %d (msg offset %d)", consumer.offset, currentOffset)
+			}
+			if ErrIncompletePacket == err1 {
+				// Reached the end of the current packet and the last message is incomplete.
+				// Need a new Fetch Request from a newer offset, or a larger packet.
+				break
 			}
 			msgOffset := consumer.offset + currentOffset
 			for _, msg := range msgs {
 				// do a non-blocking select to see whether we received a request to stop reading
 				select {
 				case <-stop:
-					//fmt.Println("received request to stop")
+					//fmt.Println("received request to stop whilst iterating message set")
 					return num, err
 				default:
-					// update all of the messages offset
+					// update the offset of whole message set
 					// multiple messages can be at the same offset (compressed for example)
 					msg.offset = msgOffset
 					handlerFunc(&msg)

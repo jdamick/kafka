@@ -25,6 +25,7 @@ package kafka
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"hash/crc32"
 	"log"
 )
@@ -34,6 +35,14 @@ const (
 	MAGIC_DEFAULT = 1
 	// magic + compression + chksum
 	NO_LEN_HEADER_SIZE = 1 + 1 + 4
+)
+
+var (
+	ErrMalformedPacket       = fmt.Errorf("kafka message malformed, expecting at least 4 bytes")
+	ErrIncompletePacket      = fmt.Errorf("kafka message incomplete, expecting larger packet")
+	ErrIncompleteInnerPacket = fmt.Errorf("incomplete kafka message within a compressed message")
+	ErrInvalidMagic          = fmt.Errorf("incorrect magic value")
+	ErrChecksumMismatch      = fmt.Errorf("checksum mismatch on kafka message")
 )
 
 type Message struct {
@@ -99,45 +108,61 @@ func (m *Message) Encode() []byte {
 	return msg
 }
 
-func DecodeWithDefaultCodecs(packet []byte) (uint32, []Message) {
+func DecodeWithDefaultCodecs(packet []byte) (uint32, []Message, error) {
 	return Decode(packet, DefaultCodecsMap)
 }
 
-func Decode(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (uint32, []Message) {
+// Decode scans a packet for messages and decodes them
+func Decode(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (uint32, []Message, error) {
 	messages := []Message{}
 
-	length, message := decodeMessage(packet, payloadCodecsMap)
+	message, err := decodeMessage(packet, payloadCodecsMap)
 
-	if length > 0 && message != nil {
-		if message.compression != NO_COMPRESSION_ID {
-			// wonky special case for compressed messages having embedded messages
-			payloadLen := uint32(len(message.payload))
-			messageLenLeft := payloadLen
-			for messageLenLeft > 0 {
-				start := payloadLen - messageLenLeft
-				innerLen, innerMsg := decodeMessage(message.payload[start:], payloadCodecsMap)
-				messageLenLeft = messageLenLeft - innerLen - 4 // message length uint32
-				messages = append(messages, *innerMsg)
-			}
-		} else {
-			messages = append(messages, *message)
-		}
+	// invalid / incomplete message
+	if nil != err || nil == message || message.totalLength < 1 {
+		log.Println(err.Error())
+		return 0, messages, err
 	}
 
-	return length, messages
+	// one message, no compression
+	if message.compression == NO_COMPRESSION_ID {
+		return message.totalLength, append(messages, *message), nil
+	}
+
+	// wonky special case for compressed messages having embedded messages
+	err = nil
+	payloadLen := uint32(len(message.payload))
+	messageLenLeft := payloadLen
+	var innerMsg *Message
+	for nil == err && messageLenLeft > 0 {
+		start := payloadLen - messageLenLeft
+		innerMsg, err = decodeMessage(message.payload[start:], payloadCodecsMap)
+		if nil != err {
+			log.Println(err.Error())
+			if ErrIncompletePacket == err {
+				// the current top-level message is incomplete, reached end of packet
+				err = nil
+			}
+			break
+		}
+		messageLenLeft = messageLenLeft - innerMsg.totalLength - 4 // message length uint32
+		messages = append(messages, *innerMsg)
+	}
+
+	return message.totalLength, messages, err
 }
 
-func decodeMessage(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (uint32, *Message) {
+func decodeMessage(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (*Message, error) {
 	if len(packet) < 5 {
-		log.Printf("malformed packet with length:%d (%#v), skipping\n", len(packet), packet)
-		return 0, nil
+		return nil, ErrMalformedPacket
 	}
 
 	length := binary.BigEndian.Uint32(packet[0:])
 	if length > uint32(len(packet[4:])) {
-		log.Printf("length mismatch, expected at least: %X (%d), was: %X (%d)\n", length, length, len(packet[4:]), len(packet[4:]))
-		return 0, nil
+		log.Printf("length mismatch, expected at least: %d, was: %d\n", length, len(packet[4:]))
+		return nil, ErrIncompletePacket
 	}
+
 	msg := Message{}
 	msg.totalLength = length
 	msg.magic = packet[4]
@@ -147,15 +172,23 @@ func decodeMessage(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (uint3
 		msg.compression = byte(0)
 		copy(msg.checksum[:], packet[5:9])
 		payloadLength := length - 1 - 4
+		if uint64(len(packet)) < uint64(9+payloadLength) {
+			log.Printf("packet incomplete, expected at least %d, got %d ===== %d\n", payloadLength+9, len(packet), length)
+			return nil, ErrIncompleteInnerPacket
+		}
 		rawPayload = packet[9 : 9+payloadLength]
 	} else if msg.magic == MAGIC_DEFAULT {
 		msg.compression = packet[5]
 		copy(msg.checksum[:], packet[6:10])
 		payloadLength := length - NO_LEN_HEADER_SIZE
+		if uint64(len(packet)) < uint64(10+payloadLength) {
+			log.Printf("packet incomplete, expected at least %d, got %d ===== %d\n", payloadLength+10, len(packet), length)
+			return nil, ErrIncompleteInnerPacket
+		}
 		rawPayload = packet[10 : 10+payloadLength]
 	} else {
-		log.Printf("incorrect magic, expected: %X was: %X\n", MAGIC_DEFAULT, msg.magic)
-		return 0, nil
+		log.Printf("incorrect magic byte in kafka message header, expected: %X was: %X\n", MAGIC_DEFAULT, msg.magic)
+		return nil, ErrInvalidMagic
 	}
 
 	payloadChecksum := make([]byte, 4)
@@ -163,11 +196,11 @@ func decodeMessage(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (uint3
 	if !bytes.Equal(payloadChecksum, msg.checksum[:]) {
 		msg.Print()
 		log.Printf("checksum mismatch, expected: % X was: % X\n", payloadChecksum, msg.checksum[:])
-		return 0, nil
+		return nil, ErrChecksumMismatch
 	}
 	msg.payload = payloadCodecsMap[msg.compression].Decode(rawPayload)
 
-	return length, &msg
+	return &msg, nil
 }
 
 func (msg *Message) Print() {
