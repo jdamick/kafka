@@ -203,6 +203,32 @@ func TestLongCompressedMessageRoundTrip(t *testing.T) {
 	}
 }
 
+func TestLongCompressedMessageRoundTripSnappy(t *testing.T) {
+	payloadBuf := bytes.NewBuffer([]byte{})
+	// make the test bigger than buffer allocated in the Decode
+	for i := 0; i < 15; i++ {
+		payloadBuf.Write([]byte("testing123 "))
+	}
+
+	uncompressedMsgBytes := NewMessage(payloadBuf.Bytes()).Encode()
+	msg := NewMessageWithCodec(uncompressedMsgBytes, DefaultCodecsMap[SNAPPY_COMPRESSION_ID])
+
+	// verify round trip
+	length, msgsDecoded, err := Decode(msg.Encode(), DefaultCodecsMap)
+
+	if length == 0 || msgsDecoded == nil || err != nil {
+		t.Fatal("message is nil")
+	}
+	msgDecoded := msgsDecoded[0]
+
+	if !bytes.Equal(msgDecoded.payload, payloadBuf.Bytes()) {
+		t.Fatal("bytes not equal")
+	}
+	if msgDecoded.magic != 1 {
+		t.Fatal("magic incorrect")
+	}
+}
+
 func TestMultipleCompressedMessages(t *testing.T) {
 	msgs := []*Message{NewMessage([]byte("testing")),
 		NewMessage([]byte("multiple")),
