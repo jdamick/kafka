@@ -169,6 +169,7 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 			if ErrIncompletePacket == err1 {
 				// Reached the end of the current packet and the last message is incomplete.
 				// Need a new Fetch Request from a newer offset, or a larger packet.
+				log.Println("Incomplete message at offset %d", currentOffset)
 				break
 			}
 			msgOffset := consumer.offset + currentOffset
