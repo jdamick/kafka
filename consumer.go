@@ -176,12 +176,13 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 						currentOffset)
 				} else {
 					// Partial message at end of current batch, need a new Fetch Request from a newer offset
-					log.Printf("DEBUG: Incomplete message at offset %d %d for topic '%s' (%s, partition %d)\n",
+					log.Printf("DEBUG: Incomplete message at offset %d %d for topic '%s' (%s, partition %d), fetching new batch from offset %d\n",
 						consumer.offset,
 						currentOffset,
 						consumer.broker.topic,
 						consumer.broker.hostname,
-						consumer.broker.partition)
+						consumer.broker.partition,
+						consumer.offset+currentOffset)
 				}
 				break
 			}
