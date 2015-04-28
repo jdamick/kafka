@@ -168,8 +168,21 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 			totalLength, msgs, err1 := Decode(payload[currentOffset:], consumer.codecs)
 			if ErrIncompletePacket == err1 {
 				// Reached the end of the current packet and the last message is incomplete.
-				// Need a new Fetch Request from a newer offset, or a larger packet.
-				log.Printf("Incomplete message at offset %d %d\n", consumer.offset, currentOffset)
+				if 0 == num {
+					// This is the very first message in the batch => we need to request a larger packet
+					// or the consumer will get stuck here indefinitely
+					log.Printf("ERROR: Incomplete message at offset %d %d, change the configuration to a larger max fetch size\n",
+						consumer.offset,
+						currentOffset)
+				} else {
+					// Partial message at end of current batch, need a new Fetch Request from a newer offset
+					log.Printf("DEBUG: Incomplete message at offset %d %d for topic '%s' (%s, partition %d)\n",
+						consumer.offset,
+						currentOffset,
+						consumer.broker.topic,
+						consumer.broker.hostname,
+						consumer.broker.partition)
+				}
 				break
 			}
 			msgOffset := consumer.offset + currentOffset

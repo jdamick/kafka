@@ -132,7 +132,7 @@ func Decode(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (uint32, []Me
 
 	// invalid / incomplete message
 	if nil != err || nil == message || message.totalLength < 1 {
-		log.Println(err.Error())
+		log.Println("DEBUG:", err.Error())
 		return 0, messages, err
 	}
 
@@ -150,7 +150,7 @@ func Decode(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (uint32, []Me
 		start := payloadLen - messageLenLeft
 		innerMsg, err = decodeMessage(message.payload[start:], payloadCodecsMap)
 		if nil != err {
-			log.Println(err.Error())
+			log.Println("DEBUG:", err.Error())
 			if ErrIncompletePacket == err {
 				// the current top-level message is incomplete, reached end of packet
 				err = nil
@@ -171,7 +171,7 @@ func decodeMessage(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (*Mess
 
 	length := binary.BigEndian.Uint32(packet[0:])
 	if length > uint32(len(packet[4:])) {
-		log.Printf("length mismatch, expected at least: %d, was: %d\n", length, len(packet[4:]))
+		log.Printf("DEBUG: length mismatch, expected at least: %d, was: %d\n", length, len(packet[4:]))
 		return nil, ErrIncompletePacket
 	}
 
