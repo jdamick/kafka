@@ -174,7 +174,6 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 					log.Printf("ERROR: Incomplete message at offset %d %d, change the configuration to a larger max fetch size\n",
 						consumer.offset,
 						currentOffset)
-					log.Printf("Payload length: %d, currentOffset: %d, payload: [%x]", length, currentOffset, payload)
 				} else {
 					// Partial message at end of current batch, need a new Fetch Request from a newer offset
 					log.Printf("DEBUG: Incomplete message at offset %d %d for topic '%s' (%s, partition %d), fetching new batch from offset %d\n",
@@ -186,6 +185,13 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 						consumer.offset+currentOffset)
 				}
 				break
+			} else if ErrMalformedPacket == err1 {
+				log.Printf("ERROR: Malformed message at offset %d %d\n",
+					consumer.offset,
+					currentOffset)
+			}
+			if err != nil {
+				log.Printf("Payload length: %d, currentOffset: %d, payload: [%x]", length, currentOffset, payload)
 			}
 			msgOffset := consumer.offset + currentOffset
 			for _, msg := range msgs {
