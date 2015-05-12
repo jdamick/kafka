@@ -126,6 +126,23 @@ func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTime
 	return num, err
 }
 
+// reconnect from the earliest available offset after the current one becomes unavailable
+func (consumer *BrokerConsumer) reconnectFromEarliestAvailableOffset(conn *net.TCPConn) (uint64, error) {
+	_, err := conn.Write(consumer.broker.EncodeOffsetRequest(OFFSET_EARLIEST, 1))
+	if err != nil {
+		log.Println("Failed kafka offset request:", err.Error())
+		return 0, err
+	}
+
+	length, payload, err := consumer.broker.readResponse(conn)
+	log.Println("kafka offset request of", length, "bytes starting from offset", consumer.offset, payload)
+
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(payload[0:]), nil
+}
+
 // MessageHandlerFunc defines the interface for message handlers accepted by Consume()
 type MessageHandlerFunc func(msg *Message)
 
@@ -172,7 +189,6 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 
 	length, payload, err := consumer.broker.readResponse(conn)
 	//log.Println("kafka fetch request of", length, "bytes starting from offset", consumer.offset)
-
 	if err != nil {
 		if err.Error() != "Broker Response Error: 1" {
 			return -1, err
@@ -200,6 +216,7 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 		// parse out the messages
 		currentOffset := uint64(0)
 		for currentOffset <= uint64(length-4) {
+			//log.Printf("[%d][%d](%d)\n", consumer.offset, currentOffset, consumer.offset+currentOffset)
 			totalLength, msgs, err1 := Decode(payload[currentOffset:], consumer.codecs)
 			if ErrIncompletePacket == err1 || ErrMalformedPacket == err1 {
 				// Reached the end of the current packet and the last message is incomplete.
