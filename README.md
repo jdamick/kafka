@@ -8,6 +8,11 @@ Go language: (http://golang.org/) <br/>
 
 ## Changes
 
+### May 2015
+
+* fixed bug handling partial message at end of a fetch response when the payload is < 4 bytes
+* if the the kafka log segment being read is cleaned up, attempt resuming the consumer from the earliest available offset
+
 ### April 2015
 
 * added support for Snappy compression

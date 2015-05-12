@@ -230,7 +230,8 @@ func TestLongCompressedMessageRoundTripSnappy(t *testing.T) {
 }
 
 func TestMultipleCompressedMessages(t *testing.T) {
-	msgs := []*Message{NewMessage([]byte("testing")),
+	msgs := []*Message{
+		NewMessage([]byte("testing")),
 		NewMessage([]byte("multiple")),
 		NewMessage([]byte("messages")),
 	}
