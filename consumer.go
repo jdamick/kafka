@@ -27,6 +27,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -92,8 +93,15 @@ func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTime
 			}, quit)
 
 			if err != nil {
-				if err != io.EOF && err.Error() != "use of closed network connection" {
+				if err == io.EOF {
+					// end of queue: leave
+				} else if err.Error() == "use of closed network connection" || strings.Contains(err.Error(), "Broker Response Error: 1") {
+					// reached end of batch or invalid offset: try one more time with a new fetch request
+					continue
+				} else {
+					// something bad and unforeseen:
 					log.Println("Fatal Error: ", err)
+					//FIXME: never panic in libraries
 					panic(err)
 				}
 				close(forceQuit)
@@ -206,10 +214,11 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 				if 0 == num {
 					// This is the very first message in the batch => we need to request a larger packet
 					// or the consumer will get stuck here indefinitely
-					log.Printf("ERROR: Incomplete message at offset %d %d, change the configuration to a larger max fetch size\n",
+					log.Printf("ERROR: Incomplete message at offset %d %d (payload length: %d), change the configuration to a larger max fetch size\n",
 						consumer.offset,
-						currentOffset)
-					log.Printf("\nPayload length: %d, currentOffset: %d, payload: [%x]\n\n", length, currentOffset, payload)
+						currentOffset,
+						length)
+					//log.Printf("\nPayload length: %d, currentOffset: %d, payload: [%x]\n\n", length, currentOffset, payload)
 				} else {
 					// Partial message at end of current batch, need a new Fetch Request from a newer offset
 					log.Printf("DEBUG: Incomplete message at offset %d %d for topic '%s' (%s, partition %d), fetching new batch from offset %d\n",
@@ -221,9 +230,6 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 						consumer.offset+currentOffset)
 				}
 				break
-			}
-			if err != nil {
-				log.Printf("Payload length: %d, currentOffset: %d, payload: [%x]", length, currentOffset, payload)
 			}
 			msgOffset := consumer.offset + currentOffset
 			for _, msg := range msgs {
