@@ -4,4 +4,4 @@ go:
   - tip
 
 install:
-  - go get code.google.com/p/snappy-go/snappy
+  - go get github.com/golang/snappy/snappy
