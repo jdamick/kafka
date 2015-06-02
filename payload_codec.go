@@ -27,7 +27,7 @@ import (
 	"compress/gzip"
 	"encoding/binary"
 
-	"code.google.com/p/snappy-go/snappy"
+	"github.com/golang/snappy/snappy"
 )
 
 // compression flags
