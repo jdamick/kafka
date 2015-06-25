@@ -44,9 +44,11 @@ type Broker struct {
 }
 
 func newBroker(hostname string, topic string, partition int) *Broker {
-	return &Broker{topic: topic,
+	return &Broker{
+		topic:     topic,
 		partition: partition,
-		hostname:  hostname}
+		hostname:  hostname,
+	}
 }
 
 func (b *Broker) connect() (conn *net.TCPConn, error error) {

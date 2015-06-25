@@ -8,6 +8,11 @@ Go language: (http://golang.org/) <br/>
 
 ## Changes
 
+### May 2015
+
+* fixed bug handling partial message at end of a fetch response when the payload is < 4 bytes
+* if the the kafka log segment being read is cleaned up, attempt resuming the consumer from the earliest available offset
+
 ### April 2015
 
 * added support for Snappy compression
@@ -17,6 +22,7 @@ Go language: (http://golang.org/) <br/>
 * reused connection in BatchPublish(), instead of establishing a brand new connection every time.
 * applied gofmt / golint on the code (renamed Id() to ID() for compliance)
 * added comments
+* better distinction between DEBUG and ERROR logs, with info on how to get the consumer unstuck when the max fetch size is too small
 
 ### April 2013
 

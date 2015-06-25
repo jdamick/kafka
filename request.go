@@ -37,6 +37,8 @@ const (
 	REQUEST_MULTIFETCH               = 2
 	REQUEST_MULTIPRODUCE             = 3
 	REQUEST_OFFSETS                  = 4
+	OFFSET_LATEST        int64       = -1
+	OFFSET_EARLIEST      int64       = -2
 )
 
 // EncodeRequestHeader marshals a request into kafka's wire format

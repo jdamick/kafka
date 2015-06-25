@@ -132,7 +132,7 @@ func Decode(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (uint32, []Me
 
 	// invalid / incomplete message
 	if nil != err || nil == message || message.totalLength < 1 {
-		log.Println(err.Error())
+		log.Println("DEBUG:", err.Error())
 		return 0, messages, err
 	}
 
@@ -150,14 +150,18 @@ func Decode(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (uint32, []Me
 		start := payloadLen - messageLenLeft
 		innerMsg, err = decodeMessage(message.payload[start:], payloadCodecsMap)
 		if nil != err {
-			log.Println(err.Error())
+			log.Println("DEBUG: (inner compressed msg)", err.Error())
 			if ErrIncompletePacket == err {
-				// the current top-level message is incomplete, reached end of packet
-				err = nil
+				// the current top-level message is incomplete, reached end of packet:
+				// we need a larger packet. Given we cannot advance the cursor within
+				// a compressed message, we discard all the inner messages read so far
+				// and force a new request. The checksum on the first decodeMessage() call
+				// in this function should had prevented reaching this point though...
+				return 0, []Message{}, err
 			}
 			break
 		}
-		messageLenLeft = messageLenLeft - innerMsg.totalLength - 4 // message length uint32
+		messageLenLeft -= (4 + innerMsg.totalLength) // message length uint32
 		messages = append(messages, *innerMsg)
 	}
 
@@ -171,7 +175,7 @@ func decodeMessage(packet []byte, payloadCodecsMap map[byte]PayloadCodec) (*Mess
 
 	length := binary.BigEndian.Uint32(packet[0:])
 	if length > uint32(len(packet[4:])) {
-		log.Printf("length mismatch, expected at least: %d, was: %d\n", length, len(packet[4:]))
+		log.Printf("DEBUG: length mismatch, expected at least: %d, was: %d\n", length, len(packet[4:]))
 		return nil, ErrIncompletePacket
 	}
 

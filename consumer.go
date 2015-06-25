@@ -27,6 +27,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -92,8 +93,15 @@ func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTime
 			}, quit)
 
 			if err != nil {
-				if err != io.EOF && err.Error() != "use of closed network connection" { //
+				if err == io.EOF {
+					// end of queue: leave
+				} else if err.Error() == "use of closed network connection" || strings.Contains(err.Error(), "Broker Response Error: 1") {
+					// reached end of batch or invalid offset: try one more time with a new fetch request
+					continue
+				} else {
+					// something bad and unforeseen:
 					log.Println("Fatal Error: ", err)
+					//FIXME: never panic in libraries
 					panic(err)
 				}
 				close(forceQuit)
@@ -129,6 +137,23 @@ func (consumer *BrokerConsumer) ConsumeOnChannel(msgChan chan *Message, pollTime
 // MessageHandlerFunc defines the interface for message handlers accepted by Consume()
 type MessageHandlerFunc func(msg *Message)
 
+// reconnect from the earliest available offset after the current one becomes unavailable
+func (consumer *BrokerConsumer) reconnectFromEarliestAvailableOffset(conn *net.TCPConn) (uint64, error) {
+	_, err := conn.Write(consumer.broker.EncodeOffsetRequest(OFFSET_EARLIEST, 1))
+	if err != nil {
+		log.Println("Failed kafka offset request:", err.Error())
+		return 0, err
+	}
+
+	length, payload, err := consumer.broker.readResponse(conn)
+	log.Println("kafka offset request of", length, "bytes starting from offset", consumer.offset, payload)
+
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(payload[0:]), nil
+}
+
 // Consume makes a single fetch request and sends the messages in the message set to a handler function
 func (consumer *BrokerConsumer) Consume(handlerFunc MessageHandlerFunc, stop <-chan struct{}) (int, error) {
 	conn, err := consumer.broker.connect()
@@ -155,9 +180,26 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 
 	length, payload, err := consumer.broker.readResponse(conn)
 	//log.Println("kafka fetch request of", length, "bytes starting from offset", consumer.offset)
-
 	if err != nil {
-		return -1, err
+		if err.Error() != "Broker Response Error: 1" {
+			return -1, err
+		}
+
+		// special case: reset offset if kafka cleaned up the file being read
+		log.Println("ERROR fetching kafka batch at offset", consumer.offset, "- probably due to timeout or premature cleanup of kafka data file")
+		log.Println("Fetching earliest available offset in kafka log")
+		consumer.offset, err = consumer.reconnectFromEarliestAvailableOffset(conn)
+		if err != nil {
+			panic(err)
+		}
+		log.Println("Resuming at offset", consumer.offset)
+		length, payload, err = consumer.broker.readResponse(conn)
+		if err != nil {
+			log.Println("Cannot resume consuming at new offset, needs manual intervention")
+			if err.Error() != "Broker Response Error: 1" {
+				return -1, err
+			}
+		}
 	}
 
 	num := 0
@@ -165,10 +207,28 @@ func (consumer *BrokerConsumer) consumeWithConn(conn *net.TCPConn, handlerFunc M
 		// parse out the messages
 		currentOffset := uint64(0)
 		for currentOffset <= uint64(length-4) {
+			//log.Printf("[%d][%d](%d)\n", consumer.offset, currentOffset, consumer.offset+currentOffset)
 			totalLength, msgs, err1 := Decode(payload[currentOffset:], consumer.codecs)
-			if ErrIncompletePacket == err1 {
+			if ErrIncompletePacket == err1 || ErrMalformedPacket == err1 {
 				// Reached the end of the current packet and the last message is incomplete.
-				// Need a new Fetch Request from a newer offset, or a larger packet.
+				if 0 == num {
+					// This is the very first message in the batch => we need to request a larger packet
+					// or the consumer will get stuck here indefinitely
+					log.Printf("ERROR: Incomplete message at offset %d %d (payload length: %d), change the configuration to a larger max fetch size\n",
+						consumer.offset,
+						currentOffset,
+						length)
+					//log.Printf("\nPayload length: %d, currentOffset: %d, payload: [%x]\n\n", length, currentOffset, payload)
+				} else {
+					// Partial message at end of current batch, need a new Fetch Request from a newer offset
+					log.Printf("DEBUG: Incomplete message at offset %d %d for topic '%s' (%s, partition %d), fetching new batch from offset %d\n",
+						consumer.offset,
+						currentOffset,
+						consumer.broker.topic,
+						consumer.broker.hostname,
+						consumer.broker.partition,
+						consumer.offset+currentOffset)
+				}
 				break
 			}
 			msgOffset := consumer.offset + currentOffset
