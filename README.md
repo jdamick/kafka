@@ -2,6 +2,8 @@
 
 # kafka - Publisher & Consumer for Kafka 0.7.x in Go #
 
+[![Join the chat at https://gitter.im/jdamick/kafka](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/jdamick/kafka?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Kafka is a distributed publish-subscribe messaging system: (http://kafka.apache.org)
 
 Go language: (http://golang.org/) <br/>
