@@ -27,7 +27,7 @@ import (
 	"compress/gzip"
 	"encoding/binary"
 
-	"github.com/golang/snappy/snappy"
+	"github.com/golang/snappy"
 )
 
 // compression flags
@@ -136,11 +136,7 @@ func (codec *SnappyPayloadCodec) ID() byte {
 
 // Encode encodes the message with Snappy compression
 func (codec *SnappyPayloadCodec) Encode(data []byte) []byte {
-	encoded, err := snappy.Encode(nil, data)
-	if nil != err {
-		panic("Could not encode message: " + err.Error())
-	}
-	return encoded
+	return snappy.Encode(nil, data)
 }
 
 // Decode decodes the message with Snappy compression
