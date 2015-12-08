@@ -25,11 +25,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	kafka "github.com/jdamick/kafka"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
+
+	kafka "github.com/jdamick/kafka"
 )
 
 var hostname string
@@ -108,7 +109,7 @@ func main() {
 			}
 		}
 	} else {
-		broker.Consume(consumerCallback)
+		broker.Consume(consumerCallback, make(chan struct{}))
 	}
 
 	if payloadFile != nil {
