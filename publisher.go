@@ -90,8 +90,7 @@ func (b *BrokerPublisher) ProduceFromChannel(msgChan chan *Message, quit chan st
 			}
 			num++
 		case <-quit:
-			break
+			return num, nil
 		}
 	}
-	return num, nil
 }

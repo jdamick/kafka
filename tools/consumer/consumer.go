@@ -108,7 +108,8 @@ func main() {
 			}
 		}
 	} else {
-		broker.Consume(consumerCallback)
+		quit := make(chan struct{})
+		broker.Consume(consumerCallback, quit)
 	}
 
 	if payloadFile != nil {
