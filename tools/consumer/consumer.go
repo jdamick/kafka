@@ -80,8 +80,8 @@ func main() {
 		}
 	}
 
+	quit := make(chan struct{})
 	if consumerForever {
-		quit := make(chan struct{})
 		go func() {
 			sigIn := make(chan os.Signal)
 			signal.Notify(sigIn)
@@ -108,7 +108,7 @@ func main() {
 			}
 		}
 	} else {
-		broker.Consume(consumerCallback)
+		broker.Consume(consumerCallback, quit)
 	}
 
 	if payloadFile != nil {

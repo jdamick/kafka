@@ -13,10 +13,10 @@ tools: force kafka
 	cd tools/publisher ; go install
 
 format:
-	gofmt -w -tabwidth=2 -tabs=false kafka
+	gofmt -w .
 
 clean:
 
 full: format clean kafka tools
 
-.PHONY: force 
+.PHONY: force
