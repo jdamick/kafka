@@ -8,6 +8,8 @@ Kafka is a distributed publish-subscribe messaging system: (http://kafka.apache.
 
 Go language: (http://golang.org/) <br/>
 
+##### For Kafka 0.8.x take a look at https://github.com/Shopify/sarama
+
 ## Changes
 
 ### May 2015
@@ -79,7 +81,7 @@ The consumer should output message.
 <pre><code>
 
 broker := kafka.NewBrokerPublisher("localhost:9092", "mytesttopic", 0)
-broker.Publish(kafka.NewMessage([]byte("tesing 1 2 3")))
+broker.Publish(kafka.NewMessage([]byte("testing 1 2 3")))
 
 </code></pre>
 
@@ -89,7 +91,7 @@ broker.Publish(kafka.NewMessage([]byte("tesing 1 2 3")))
 <pre><code>
 
 broker := kafka.NewBrokerPublisher("localhost:9092", "mytesttopic", 0)
-broker.Publish(kafka.NewCompressedMessage([]byte("tesing 1 2 3")))
+broker.Publish(kafka.NewCompressedMessage([]byte("testing 1 2 3")))
 
 </code></pre>
 
