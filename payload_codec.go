@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/binary"
+	"log"
 
 	"github.com/golang/snappy"
 )
@@ -110,17 +111,23 @@ func (codec *GzipPayloadCodec) Encode(data []byte) []byte {
 // Decode decodes the message with GZip compression
 func (codec *GzipPayloadCodec) Decode(data []byte) []byte {
 	buf := bytes.NewBuffer([]byte{})
-	zipper, _ := gzip.NewReader(bytes.NewBuffer(data))
+	zipper, err := gzip.NewReader(bytes.NewBuffer(data))
+	if nil != err {
+		log.Println("Error creating gzip reader:", err)
+	}
 	unzipped := make([]byte, 100)
 	for {
 		n, err := zipper.Read(unzipped)
-		if n > 0 && err == nil {
+		if n > 0 {
 			buf.Write(unzipped[0:n])
-		} else {
+		}
+		if nil != err {
+			if err.Error() != "EOF" {
+				log.Println("Unexpected error reading gzipped data:", err.Error())
+			}
 			break
 		}
 	}
-
 	zipper.Close()
 	return buf.Bytes()
 }
