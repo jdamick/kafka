@@ -23,10 +23,9 @@
 package kafka
 
 import (
-	"testing"
-	// "fmt"
 	"bytes"
 	"compress/gzip"
+	"testing"
 )
 
 func TestMessageCreation(t *testing.T) {
@@ -112,16 +111,20 @@ func TestCompressedMessageEncodingCompare(t *testing.T) {
 
 func TestCompressedMessageEncoding(t *testing.T) {
 	payload := []byte("testing")
+
+	// Encode message into kafka frame with no compression
 	uncompressedMsgBytes := NewMessage(payload).Encode()
 
+	// Take the raw kafka frame, gzip it and take the result as payload for a new kafka frame.
+	// Not sure why we'd want to test this as opposed to a normal message.
 	msg := NewMessageWithCodec(uncompressedMsgBytes, DefaultCodecsMap[GZIP_COMPRESSION_ID])
 
-	expectedPayload := []byte{0x1F, 0x8B, 0x08, 0x00, 0x00, 0x09, 0x6E, 0x88, 0x04,
-		0xFF, 0x62, 0x60, 0x60, 0xE0, 0x65, 0x64, 0x78, 0xF1, 0x39, 0x8A,
-		0xAD, 0x24, 0xB5, 0xB8, 0x24, 0x33, 0x2F, 0x1D, 0x10, 0x00, 0x00,
-		0xFF, 0xFF, 0x0C, 0x6A, 0x82, 0x91, 0x11, 0x00, 0x00, 0x00}
+	expectedPayload := []byte{0x1F, 0x8B, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04,
+		0xFF, 0x00, 0x11, 0x00, 0xEE, 0xFF, 0x00, 0x00, 0x00, 0x0D, 0x01, 0x00,
+		0xE8, 0xF3, 0x5A, 0x06, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6E, 0x67, 0x01,
+		0x00, 0x00, 0xFF, 0xFF, 0x0C, 0x6A, 0x82, 0x91, 0x11, 0x00, 0x00, 0x00}
 
-	expectedHeader := []byte{0x00, 0x00, 0x00, 0x2F, 0x01, 0x01, 0x96, 0x71, 0xA6, 0xE8}
+	expectedHeader := []byte{0x00, 0x00, 0x00, 0x33, 0x01, 0x01, 0x1B, 0x20, 0xC9, 0x02}
 
 	expected := make([]byte, len(expectedHeader)+len(expectedPayload))
 	n := copy(expected, expectedHeader)
@@ -142,13 +145,23 @@ func TestCompressedMessageEncoding(t *testing.T) {
 	}
 
 	if !bytes.Equal(expected, msg.Encode()) {
-		t.Fatalf("expected: % X\n but got: % X", expected, msg.Encode())
+		t.Fatalf("expected encoded: \n\t% 20X\n but got: \n\t% 20X", expected, msg.Encode())
 	}
+}
+
+func TestCompressedMessageEncodingRoundTrip(t *testing.T) {
+	payload := []byte("testing")
+
+	// Encode payload into kafka frame with no compression
+	uncompressedMsgBytes := NewMessage(payload).Encode()
+
+	// Take the raw kafka frame, gzip it and take the result as payload for a new kafka frame.
+	// Not sure why we'd want to test this as opposed to a normal message.
+	msg := NewMessageWithCodec(uncompressedMsgBytes, DefaultCodecsMap[GZIP_COMPRESSION_ID])
 
 	// verify round trip
 	length, msgsDecoded, err := Decode(msg.Encode(), DefaultCodecsMap)
-
-	if length == 0 || msgsDecoded == nil || err != nil {
+	if length == 0 || len(msgsDecoded) == 0 || err != nil {
 		t.Fatal("message is nil")
 	}
 	msgDecoded := msgsDecoded[0]
@@ -190,7 +203,10 @@ func TestLongCompressedMessageRoundTrip(t *testing.T) {
 	// verify round trip
 	length, msgsDecoded, err := Decode(msg.Encode(), DefaultCodecsMap)
 
-	if length == 0 || msgsDecoded == nil || err != nil {
+	if nil != err {
+		t.Fatal(err)
+	}
+	if length == 0 || msgsDecoded == nil {
 		t.Fatal("message is nil")
 	}
 	msgDecoded := msgsDecoded[0]
